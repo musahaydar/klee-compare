@@ -360,8 +360,9 @@ KleeHandler::KleeHandler(int argc, char **argv)
 
   if (dir_given) {
     // OutputDir
-    if (mkdir(directory.c_str(), 0775) < 0)
-      klee_error("cannot create \"%s\": %s", directory.c_str(), strerror(errno));
+    // Allow klee to output to an existing directory, makes it easier to watch the directory for changes
+    if (mkdir(directory.c_str(), 0775) < 0 && errno != 17)
+      klee_error("cannot create \"%s\": %s (%d)", directory.c_str(), strerror(errno), errno);
 
     m_outputDirectory = directory;
   } else {
