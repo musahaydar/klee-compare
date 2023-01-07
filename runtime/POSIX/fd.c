@@ -406,6 +406,24 @@ ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
+int printf(const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+
+  // first let the print go through
+  // convenient because it gives us the character count
+  int c = vprintf(fmt, args);
+
+  // print the formatted string to a new buffer
+  // dump the print to a file in KLEE output
+  char *buf = calloc(1, c + 1);
+  vsprintf(buf, fmt, args);
+  klee_compare_dump(buf);
+
+  va_end(args);
+  free(buf);
+  return 0;
+}
 
 ssize_t write(int fd, const void *buf, size_t count) {
   static int n_calls = 0;

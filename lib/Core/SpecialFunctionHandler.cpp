@@ -26,6 +26,7 @@
 #include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/OptionCategories.h"
+#include "klee/klee.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DataLayout.h"
@@ -113,6 +114,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("klee_stack_trace", handleStackTrace, false),
   add("klee_warning", handleWarning, false),
   add("klee_warning_once", handleWarningOnce, false),
+  add("klee_compare_dump", handleCompareDump, false),
   add("malloc", handleMalloc, true),
   add("memalign", handleMemalign, true),
   add("realloc", handleRealloc, true),
@@ -585,6 +587,14 @@ void SpecialFunctionHandler::handleWarning(ExecutionState &state,
   std::string msg_str = readStringAtAddress(state, arguments[0]);
   klee_warning("%s: %s", state.stack.back().kf->function->getName().data(), 
                msg_str.c_str());
+}
+
+void SpecialFunctionHandler::handleCompareDump(ExecutionState &state,
+                                           KInstruction *target,
+                                           std::vector<ref<Expr> > &arguments) {
+  
+  std::string r = readStringAtAddress(state, arguments[0]);
+  klee_compare_dump(r.c_str());
 }
 
 void SpecialFunctionHandler::handleWarningOnce(ExecutionState &state,
