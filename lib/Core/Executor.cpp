@@ -3815,8 +3815,12 @@ void Executor::callExternalFunction(ExecutionState &state,
                                     std::vector< ref<Expr> > &arguments) {
   // check if specialFunctionHandler wants it
   if (const auto *func = dyn_cast<KFunction>(callable)) {
-    if (specialFunctionHandler->handle(state, func->function, target, arguments))
-      return;
+    if (specialFunctionHandler->handle(state, func->function, target, arguments)) {
+      // musa TODO: make a list of symbols which we want to have proceed directly anyway
+      if(func->function->getName() != "printf") {
+        return;
+      }
+    }
   }
 
   if (ExternalCalls == ExternalCallPolicy::None &&

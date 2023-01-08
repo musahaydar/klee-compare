@@ -116,6 +116,9 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("malloc", handleMalloc, true),
   add("memalign", handleMemalign, true),
   add("realloc", handleRealloc, true),
+  
+  add("printf", handlePrintf, false),
+  // add("write", handleWrite, false),
 
 #ifdef SUPPORT_KLEE_EH_CXX
   add("_klee_eh_Unwind_RaiseException_impl", handleEhUnwindRaiseExceptionImpl, false),
@@ -871,3 +874,34 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
     mo->isGlobal = true;
   }
 }
+
+#include "llvm/Support/raw_ostream.h"
+
+void SpecialFunctionHandler::handlePrintf(ExecutionState &state,
+                                              KInstruction *target,
+                                              std::vector<ref<Expr> > &arguments) {
+  printf("Got printf\n");
+  // first argument is the fmt string
+  std::string fmt = readStringAtAddress(state, arguments[0]);
+  
+  // next argument(s) are the values
+  auto iter = arguments.begin();
+  // iter++; // skip the first argument
+  
+  for(; iter != arguments.end(); ++iter) {
+    // (*iter)->dump(); //debugging
+    errs() << **iter << "\n";
+  }
+}
+
+// Musa: this conflicts with the Klee POSIX runtime "write" function since that one
+// is not considered "external". It seems this is given priority. We might have to dump the
+// contents of the POSIX runtime write funciton using some new "klee_compare_dump" intrinsic
+// which is resolved with a different SpecialFunctionHandler
+//
+// void SpecialFunctionHandler::handleWrite(ExecutionState &state,
+//                                               KInstruction *target,
+//                                               std::vector<ref<Expr> > &arguments) {
+//
+//   printf("TODO\n");
+// }

@@ -408,6 +408,8 @@ ssize_t read(int fd, void *buf, size_t count) {
 
 
 ssize_t write(int fd, const void *buf, size_t count) {
+  klee_warning("(TODO) Klee-Compare will miss this write call!");
+
   static int n_calls = 0;
   exe_file_t *f;
 
