@@ -406,22 +406,30 @@ ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
+// NOTE: this gets symbolically executed, not ideal, finds errors in 
+// the `vprintf` call that we don't care about, adds paths to explore, etc
 int printf(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
 
   // first let the print go through
   // convenient because it gives us the character count
-  int c = vprintf(fmt, args);
+  vprintf(fmt, args);
 
-  // print the formatted string to a new buffer
-  // dump the print to a file in KLEE output
-  char *buf = calloc(1, c + 1);
-  vsprintf(buf, fmt, args);
-  klee_compare_dump(buf);
+  // dump the print to a file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  vfprintf(dumpfd, fmt, args);
+  fclose(dumpfd);
+
+  // TODO: can we use an env var from KLEE to output to KLEE's output dir?
+  // char *path = getenv("KLEE_OUTPUT_PATH");
+  // if (path) {
+  //   FILE *dumpfd = fopen(strcat(path, "/write_dump.txt"), "a+");
+  //   vfprintf(dumpfd, fmt, args);
+  //   fclose(dumpfd);
+  // }
 
   va_end(args);
-  free(buf);
   return 0;
 }
 

@@ -109,6 +109,10 @@ int main(int argc, char **argv) {
     string outdir = create_output_dir();
     string outdir_klee = outdir + "/klee-out";
 
+    // set this for the POSIX Runtime
+    // there is no std version of setenv?? using stdlib.h version
+    // setenv("KLEE_OUTPUT_PATH", outdir_klee.c_str(), 1);
+
     // we'll create the klee output directory before klee does so that way we can
     // watch it with inotify without missing any events
     mkdir(outdir_klee.c_str(), 0775);
