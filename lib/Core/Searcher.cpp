@@ -552,3 +552,41 @@ void InterleavedSearcher::printName(llvm::raw_ostream &os) {
     searcher->printName(os);
   os << "</InterleavedSearcher>\n";
 }
+
+///
+
+ExecutionState &PatchPriority::selectState() {
+  return *states.back();
+}
+
+void PatchPriority::update(ExecutionState *current,
+                         const std::vector<ExecutionState *> &addedStates,
+                         const std::vector<ExecutionState *> &removedStates) {
+  // insert states
+  states.insert(states.end(), addedStates.begin(), addedStates.end());
+
+  // remove states
+  for (const auto state : removedStates) {
+    if (state == states.back()) {
+      states.pop_back();
+    } else {
+      auto it = std::find(states.begin(), states.end(), state);
+      assert(it != states.end() && "invalid state removed");
+      states.erase(it);
+    }
+  }
+}
+
+bool PatchPriority::empty() {
+  return states.empty();
+}
+
+// this function returns true when we've explored all the states we want to explore
+// based on the pruning strategy we're using here
+bool PatchPriority::done() {
+  return false;
+}
+
+void PatchPriority::printName(llvm::raw_ostream &os) {
+  os << "PatchPriority\n";
+}

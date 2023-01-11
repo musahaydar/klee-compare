@@ -56,6 +56,10 @@ namespace klee {
     /// \return True if no state left for exploration, False otherwise
     virtual bool empty() = 0;
 
+    // Musa: I want to add this to the main executor loop without breaking anything and
+    // I don't know where else the empty() function is used, so I'll just add this here
+    virtual bool done() { return false; }
+
     /// Prints name of searcher as a `klee_message()`.
     // TODO: could probably made prettier or more flexible
     virtual void printName(llvm::raw_ostream &os) = 0;
@@ -71,7 +75,8 @@ namespace klee {
       NURS_RP,
       NURS_ICnt,
       NURS_CPICnt,
-      NURS_QC
+      NURS_QC,
+      PatchPriority
     };
   };
 
@@ -306,6 +311,22 @@ namespace klee {
                 const std::vector<ExecutionState *> &addedStates,
                 const std::vector<ExecutionState *> &removedStates) override;
     bool empty() override;
+    void printName(llvm::raw_ostream &os) override;
+  };
+
+  /// PatchPriority searcher prioritizes code which has been changed by a version of a
+  /// program, as an addition for Klee-Compare.
+  /// TODO: implement the different pruning strategies we can take here
+  class PatchPriority final : public Searcher {
+    std::vector<ExecutionState*> states;
+
+  public:
+    ExecutionState &selectState() override;
+    void update(ExecutionState *current,
+                const std::vector<ExecutionState *> &addedStates,
+                const std::vector<ExecutionState *> &removedStates) override;
+    bool empty() override;
+    bool done() override;
     void printName(llvm::raw_ostream &os) override;
   };
 

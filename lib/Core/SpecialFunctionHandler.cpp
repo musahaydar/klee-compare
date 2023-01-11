@@ -117,7 +117,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("memalign", handleMemalign, true),
   add("realloc", handleRealloc, true),
   
-  add("printf", handlePrintf, false),
+  // add("printf", handlePrintf, false),
   // add("write", handleWrite, false),
 
 #ifdef SUPPORT_KLEE_EH_CXX
