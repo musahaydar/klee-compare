@@ -186,6 +186,12 @@ namespace {
                    cl::desc("Link with POSIX runtime. Options that can be passed as arguments to the programs are: --sym-arg <max-len>  --sym-args <min-argvs> <max-argvs> <max-len> + file model options (default=false)."),
                    cl::init(false),
                    cl::cat(LinkCat));
+  
+  cl::opt<bool>
+  ComparePOSIX("posix-compare",
+               cl::desc("Use the POSIX modified for KLEE Compare (for concrete input exeuctions)"),
+               cl::init(false),
+               cl::cat(LinkCat));
 
   cl::opt<bool> WithUBSanRuntime("ubsan-runtime",
                                  cl::desc("Link with UBSan runtime."),
@@ -1255,7 +1261,11 @@ int main(int argc, char **argv, char **envp) {
 
   if (WithPOSIXRuntime) {
     SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libkleeRuntimePOSIX" + opt_suffix + ".bca");
+    if (ComparePOSIX) {
+      llvm::sys::path::append(Path, "libkleeRuntimePOSIXCompare" + opt_suffix + ".bca");
+    } else {
+      llvm::sys::path::append(Path, "libkleeRuntimePOSIX" + opt_suffix + ".bca");
+    }
     klee_message("NOTE: Using POSIX model: %s", Path.c_str());
     if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
                         errorMsg))

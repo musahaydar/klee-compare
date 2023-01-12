@@ -73,15 +73,24 @@ string create_output_dir() {
 // this function is run in a separate thread than the main thread which looks for ktest files
 // this does the actual comparison between the two versions of the programs
 // it stops when "done" is set to true by the caller thread or something :shrug:
-void compare(bool *done, string klee_command, string klee_out_dir, std::queue<string> *ktests) {
+void compare(bool *done, string klee_command, string outdir, std::queue<string> *ktests) {
     while(!*done) {
         while (!ktests->empty()) {
             // create the command which we'll use to replay the test with KLEE 
             string test = ktests->front();
             ktests->pop();
 
-            string com = klee_command + " --replay-ktest-file " + klee_out_dir + "/" + test + " " + InputFile;
             // TODO: set output dir as patched or program out
+            string patched_outdir = outdir + "/klee-patched-out";
+            
+            // set this for the POSIX Runtime
+            // there is no std version of setenv? using stdlib.h version
+            setenv("KLEE_OUTPUT_PATH", patched_outdir.c_str(), 1);
+
+            string com = klee_command + " --posix-compare --output-dir " + patched_outdir;
+            com += " --replay-ktest-file " + outdir + "/klee-out/" + test + " " + InputFile;
+            com += " &> /dev/null"; // don't wanna print this output
+            
             FILE *fp = popen(com.c_str(), "w");
 
             if (DEBUG_PRINTS) std::cout << "Running command " << com << std::endl;
@@ -92,6 +101,8 @@ void compare(bool *done, string klee_command, string klee_out_dir, std::queue<st
             // TODO: run the other version of the program with the same generated ktest file
             // TOOD: compare the results, log that a path has been explored and if a difference was found
             // TODO: delete dirs "patched-out" and "program-out" before next run
+            // string rmdir_com = "rm -rf " + patched_outdir;
+            // system(rmdir_com.c_str()); // this feels like cheating and is probably unsafe
         }
         // ktests must be empty, let KLEE run for a bit more before we try again
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -108,10 +119,6 @@ int main(int argc, char **argv) {
     // create the output directory
     string outdir = create_output_dir();
     string outdir_klee = outdir + "/klee-out";
-
-    // set this for the POSIX Runtime
-    // there is no std version of setenv?? using stdlib.h version
-    // setenv("KLEE_OUTPUT_PATH", outdir_klee.c_str(), 1);
 
     // we'll create the klee output directory before klee does so that way we can
     // watch it with inotify without missing any events
@@ -146,7 +153,7 @@ int main(int argc, char **argv) {
 
     // launch the compare function in a thread, which recieves the test files
     // in the queue once we know they exist
-    std::thread comparison_thread(compare, &done, klee_command_prefix, outdir_klee, &ktests);
+    std::thread comparison_thread(compare, &done, klee_command_prefix, outdir, &ktests);
 
     while (!done) {
         // the read call will block until a file is written by KLEE
@@ -179,6 +186,5 @@ int main(int argc, char **argv) {
     // wait for the instance of KLEE to terminate
     pclose(kleefp);
 
-    // TODO: throw comparison instances of klee's output in /dev/null
     // TODO: print paths explored, differences found
 }

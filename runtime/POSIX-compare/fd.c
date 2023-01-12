@@ -406,6 +406,35 @@ ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
+// Don't use this unless it's the concrete exeuction of KLEE
+int printf(const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+
+  // first let the print go through
+  // convenient because it gives us the character count
+  vprintf(fmt, args);
+
+  // dump the print to a file
+  // FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  // vfprintf(dumpfd, fmt, args);
+  // fclose(dumpfd);
+
+  // use an env var from KLEE to output to KLEE's output dir
+  char path[128]; // just hardcode some max lenght for the file path
+  strcpy(path, getenv("KLEE_OUTPUT_PATH"));
+  strcat(path, "/write_dump.txt");
+  // TODO: this if statement should check if the getenv failed
+  if (1) {
+    FILE *dumpfd = fopen(path, "a+");
+    vfprintf(dumpfd, fmt, args);
+    fclose(dumpfd);
+  }
+
+  va_end(args);
+  return 0;
+}
+
 ssize_t write(int fd, const void *buf, size_t count) {
   static int n_calls = 0;
   exe_file_t *f;
