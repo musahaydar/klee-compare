@@ -411,25 +411,26 @@ int printf(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
 
-  // first let the print go through
-  // convenient because it gives us the character count
+  // dump the print to a file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  vfprintf(dumpfd, fmt, args);
+  fclose(dumpfd);
+
+  // let the print go through to the terminal
   vprintf(fmt, args);
 
-  // dump the print to a file
-  // FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
-  // vfprintf(dumpfd, fmt, args);
-  // fclose(dumpfd);
-
+  // TODO: this breaks things. using hardcoded path above instead
   // use an env var from KLEE to output to KLEE's output dir
-  char path[128]; // just hardcode some max lenght for the file path
-  strcpy(path, getenv("KLEE_OUTPUT_PATH"));
-  strcat(path, "/write_dump.txt");
+  // char path[128]; // just hardcode some max lenght for the file path
+  // strcpy(path, getenv("KLEE_OUTPUT_PATH"));
+  // strcat(path, "/write_dump.txt");
+  
   // TODO: this if statement should check if the getenv failed
-  if (1) {
-    FILE *dumpfd = fopen(path, "a+");
-    vfprintf(dumpfd, fmt, args);
-    fclose(dumpfd);
-  }
+  // if (1) {
+  //   FILE *dumpfd = fopen(path, "a+");
+  //   vfprintf(dumpfd, fmt, args);
+  //   fclose(dumpfd);
+  // }
 
   va_end(args);
   return 0;
