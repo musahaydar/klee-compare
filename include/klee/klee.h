@@ -119,9 +119,6 @@ extern "C" {
   void klee_posix_prefer_cex(void *object, uintptr_t condition);
   void klee_mark_global(void *object);
 
-  /* Addition for klee-compare so the POSIX runtime can dump information for comparison */
-  void klee_compare_dump(const char *data);
-
   /* Return a possible constant value for the input expression. This
      allows programs to forcibly concretize values on their own. */
 #define KLEE_GET_VALUE_PROTO(suffix, type)	type klee_get_value##suffix(type expr)
