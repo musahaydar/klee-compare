@@ -407,7 +407,7 @@ ssize_t read(int fd, void *buf, size_t count) {
 }
 
 // Don't use this unless it's the concrete exeuction of KLEE
-int printf(const char *fmt, ...) {
+int kcmp_printf(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
 

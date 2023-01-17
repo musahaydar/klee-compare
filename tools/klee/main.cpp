@@ -1219,6 +1219,27 @@ int main(int argc, char **argv, char **envp) {
     klee_error("error loading program '%s': %s", InputFile.c_str(),
                errorMsg.c_str());
   }
+
+  // rename symbols if KLEE-Compare
+  // the idea here is that when we're running the concrete execution, we want to save the externally
+  // visible outputs (system calls e.g. "printf"), so we'll link against the POSIX-Compare runtime to
+  // intercept and dump the outputs of these calls. We'll rename the symbols here so that way we can still
+  // access the C library headers of these functions in our version, which is named like "kcmp_printf"
+  if (ComparePOSIX) {
+    // list of functions we want to rename for KLEE-Comare
+    // TODO: this shouldn't be hardcoded here
+    std::vector<std::string> renameSymbols{
+      "printf",
+      "fputs"
+    };
+
+    for (size_t i = 0; i < loadedModules.size(); ++i) {
+      for (std::string funcName : renameSymbols) {
+        replaceOrRenameFunction(loadedModules[i].get(), funcName.c_str(), std::string("kcmp_" + funcName).c_str());
+      }
+    }
+  }
+
   // Load and link the whole files content. The assumption is that this is the
   // application under test.
   // Nothing gets removed in the first place.
