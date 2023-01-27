@@ -95,6 +95,7 @@ bool files_differ(std::ifstream &file_a, std::ifstream &file_b) {
 }
 
 // helper function to run an instance of KLEE using a ktest
+// TODO: print diff of the program outputs in the results file or so
 void run_klee_instance(string klee_command, string outdir, string ktest, string target) {
     // set this for the POSIX-Compare Runtime
     // there is no std version of setenv? using stdlib.h version

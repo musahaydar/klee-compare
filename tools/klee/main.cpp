@@ -1230,7 +1230,10 @@ int main(int argc, char **argv, char **envp) {
     // TODO: this shouldn't be hardcoded here
     std::vector<std::string> renameSymbols{
       "printf",
-      "fputs"
+      "vfprintf",
+      "fputs",
+      "fputc",
+      "fwrite"
     };
 
     for (size_t i = 0; i < loadedModules.size(); ++i) {

@@ -436,6 +436,47 @@ int kcmp_printf(const char *fmt, ...) {
   return 0;
 }
 
+int kcmp_fputs(const char *str, FILE *stream) {
+  // dump the string to the file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  fputs(str, dumpfd);
+  fclose(dumpfd);
+
+  // and to the original stream
+  // should preserve any error return values to original caller
+  return fputs(str, stream);
+}
+
+int kcmp_fputc(int chr, FILE *stream) {
+  // dump the char to the file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  fputc(chr, dumpfd);
+  fclose(dumpfd);
+
+  // and to the original stream
+  return fputc(chr, stream);
+}
+
+int kcmp_vfprintf (FILE * stream, const char *fmt, va_list args) {
+  // dump to the output file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  vfprintf(dumpfd, fmt, args);
+  fclose(dumpfd);
+
+  // and to the original stream
+  return vfprintf(stream, fmt, args);
+}
+
+size_t kcmp_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
+  // dump to the output file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  fwrite(ptr, size, nmemb, dumpfd);
+  fclose(dumpfd);
+
+  // and to the original stream
+  return fwrite(ptr, size, nmemb, stream);
+}
+
 ssize_t write(int fd, const void *buf, size_t count) {
   static int n_calls = 0;
   exe_file_t *f;
