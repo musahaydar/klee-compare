@@ -104,10 +104,15 @@ public:
   /// The random number generator.
   RNG theRNG;
 
-private:
+  // musa: what if we just made this public? what then?
   std::unique_ptr<KModule> kmodule;
+
+  // for the patch comparison
+  std::unique_ptr<KModule> cmpModule;
+
+private:
   InterpreterHandler *interpreterHandler;
-  Searcher *searcher;
+  Searcher *searcher = nullptr;
 
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
@@ -508,7 +513,8 @@ public:
   }
 
   llvm::Module *setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
-                          const ModuleOptions &opts) override;
+                          const ModuleOptions &opts,
+                          std::vector<std::unique_ptr<llvm::Module>> *compareModules) override;
 
   void useSeeds(const std::vector<struct KTest *> *seeds) override {
     usingSeeds = seeds;

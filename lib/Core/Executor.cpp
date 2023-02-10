@@ -514,7 +514,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 
 llvm::Module *
 Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
-                    const ModuleOptions &opts) {
+                    const ModuleOptions &opts,
+                    std::vector<std::unique_ptr<llvm::Module>> *compareModules) {
   assert(!kmodule && !modules.empty() &&
          "can only register one module"); // XXX gross
 
@@ -536,6 +537,20 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
   while (kmodule->link(modules, opts.EntryPoint)) {
     // 2.) Apply different instrumentation
     kmodule->instrument(opts);
+  }
+
+  // prepare the compare module likewise
+  cmpModule = std::unique_ptr<KModule>(new KModule());
+  while (cmpModule->link(*compareModules, opts.EntryPoint)) {
+    // 2.) Apply different instrumentation
+    cmpModule->instrument(opts);
+  }
+
+  // NOTE: the way this is set up is such that if they provide a compare file but don't specify 
+  // the searcher type as "patch-searcher" (or whatever I called it), it may break things trying 
+  // to initialize it too early.
+  if (compareModules != nullptr) {
+    searcher = constructUserSearcher(*this);
   }
 
   // 3.) Optimise and prepare for KLEE
@@ -3541,7 +3556,11 @@ void Executor::run(ExecutionState &initialState) {
     }
   }
 
-  searcher = constructUserSearcher(*this);
+  // musa: we need to initalize the patch searcher at a different point in the program
+  // so here we can just check if the searcher hasn't been initialized yet
+  if (searcher == nullptr) {
+    searcher = constructUserSearcher(*this);
+  }
 
   std::vector<ExecutionState *> newStates(states.begin(), states.end());
   searcher->update(0, newStates, std::vector<ExecutionState *>());

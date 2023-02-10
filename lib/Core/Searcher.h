@@ -11,7 +11,9 @@
 #define KLEE_SEARCHER_H
 
 #include "ExecutionState.h"
+#include "Executor.h"
 #include "PTree.h"
+#include "PatchExplorer.h"
 #include "klee/ADT/RNG.h"
 #include "klee/System/Time.h"
 
@@ -318,9 +320,12 @@ namespace klee {
   /// program, as an addition for Klee-Compare.
   /// TODO: implement the different pruning strategies we can take here
   class PatchPriority final : public Searcher {
+    PatchExplorer *patchExplorer;
     std::vector<ExecutionState*> states;
 
   public:
+    PatchPriority(Executor *executor);
+    ~PatchPriority();
     ExecutionState &selectState() override;
     void update(ExecutionState *current,
                 const std::vector<ExecutionState *> &addedStates,

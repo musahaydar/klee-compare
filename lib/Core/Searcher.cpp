@@ -555,6 +555,15 @@ void InterleavedSearcher::printName(llvm::raw_ostream &os) {
 
 ///
 
+PatchPriority::PatchPriority(Executor *executor) {
+  // initialize the patch explorer object which computes the priorities we'll use
+  patchExplorer = new PatchExplorer(executor);
+}
+
+PatchPriority::~PatchPriority() {
+  delete patchExplorer;
+}
+
 ExecutionState &PatchPriority::selectState() {
   return *states.back();
 }

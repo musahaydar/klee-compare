@@ -284,6 +284,16 @@ namespace {
            cl::desc("Link the llvm libc++ library into the bitcode (default=false)"),
            cl::init(false),
            cl::cat(LinkCat));
+  
+  // Musa: this is here instead of in PatchExplorer.cpp because the code we invoke to prepare the bitcode lives in this driver
+  cl::OptionCategory PatchExploreOpts("Patch Explore Options",
+                        "These options are for the Patch-Directed Searcher.");
+
+  cl::opt<std::string>
+  CompareBitcode("compare-bitcode",
+          cl::desc("The bitcode of the original program, the changes to which we will be directing exeuction."),
+          cl::init(""),
+          cl::cat(PatchExploreOpts));
 }
 
 namespace klee {
@@ -1117,6 +1127,95 @@ linkWithUclibc(StringRef libDir, std::string opt_suffix,
                FortifyPath.c_str(), errorMsg.c_str());
 }
 
+static void prepareBitcode(std::vector<std::unique_ptr<llvm::Module>> &loadedModules,
+                           Interpreter::ModuleOptions &Opts,
+                           llvm::Module *mainModule,
+                           const std::string &LibraryDir,
+                           const std::string &opt_suffix) {
+  std::string errorMsg;
+
+  if (WithPOSIXRuntime) {
+    SmallString<128> Path(Opts.LibraryDir);
+    llvm::sys::path::append(Path, "libkleeRuntimePOSIX" + opt_suffix + ".bca");
+    klee_message("NOTE: Using POSIX model: %s", Path.c_str());
+    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading POSIX support '%s': %s", Path.c_str(),
+                 errorMsg.c_str());
+
+    std::string libcPrefix = (Libc == LibcType::UcLibc ? "__user_" : "");
+    preparePOSIX(loadedModules, libcPrefix);
+  }
+
+  if (WithUBSanRuntime) {
+    SmallString<128> Path(Opts.LibraryDir);
+    llvm::sys::path::append(Path, "libkleeUBSan" + opt_suffix + ".bca");
+    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading UBSan support '%s': %s", Path.c_str(),
+                 errorMsg.c_str());
+  }
+
+  if (Libcxx) {
+#ifndef SUPPORT_KLEE_LIBCXX
+    klee_error("KLEE was not compiled with libc++ support");
+#else
+    SmallString<128> LibcxxBC(Opts.LibraryDir);
+    llvm::sys::path::append(LibcxxBC, KLEE_LIBCXX_BC_NAME);
+    if (!klee::loadFile(LibcxxBC.c_str(), mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading libc++ '%s': %s", LibcxxBC.c_str(),
+                 errorMsg.c_str());
+    klee_message("NOTE: Using libc++ : %s", LibcxxBC.c_str());
+#ifdef SUPPORT_KLEE_EH_CXX
+    SmallString<128> EhCxxPath(Opts.LibraryDir);
+    llvm::sys::path::append(EhCxxPath, "libkleeeh-cxx" + opt_suffix + ".bca");
+    if (!klee::loadFile(EhCxxPath.c_str(), mainModule->getContext(),
+                        loadedModules, errorMsg))
+      klee_error("error loading libklee-eh-cxx '%s': %s", EhCxxPath.c_str(),
+                 errorMsg.c_str());
+    klee_message("NOTE: Enabled runtime support for C++ exceptions");
+#else
+    klee_message("NOTE: KLEE was not compiled with support for C++ exceptions");
+#endif
+#endif
+  }
+
+  switch (Libc) {
+  case LibcType::KleeLibc: {
+    // FIXME: Find a reasonable solution for this.
+    SmallString<128> Path(Opts.LibraryDir);
+    llvm::sys::path::append(Path,
+                            "libkleeRuntimeKLEELibc" + opt_suffix + ".bca");
+    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading klee libc '%s': %s", Path.c_str(),
+                 errorMsg.c_str());
+  }
+  /* Falls through. */
+  case LibcType::FreestandingLibc: {
+    SmallString<128> Path(Opts.LibraryDir);
+    llvm::sys::path::append(Path,
+                            "libkleeRuntimeFreestanding" + opt_suffix + ".bca");
+    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading freestanding support '%s': %s", Path.c_str(),
+                 errorMsg.c_str());
+    break;
+  }
+  case LibcType::UcLibc:
+    linkWithUclibc(LibraryDir, opt_suffix, loadedModules);
+    break;
+  }
+
+  for (const auto &library : LinkLibraries) {
+    if (!klee::loadFile(library, mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading bitcode library '%s': %s", library.c_str(),
+                 errorMsg.c_str());
+  }
+}
+
 int main(int argc, char **argv, char **envp) {
   atexit(llvm_shutdown);  // Call llvm_shutdown() on exit.
 
@@ -1252,86 +1351,35 @@ int main(int argc, char **argv, char **envp) {
                                   /*Optimize=*/OptimizeModule,
                                   /*CheckDivZero=*/CheckDivZero,
                                   /*CheckOvershift=*/CheckOvershift);
+  
+  prepareBitcode(loadedModules, Opts, mainModule, LibraryDir, opt_suffix);
 
-  if (WithPOSIXRuntime) {
-    SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libkleeRuntimePOSIX" + opt_suffix + ".bca");
-    klee_message("NOTE: Using POSIX model: %s", Path.c_str());
-    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
-                        errorMsg))
-      klee_error("error loading POSIX support '%s': %s", Path.c_str(),
-                 errorMsg.c_str());
+  // Musa: if we're given a bitcode to compare against (for directed symbolic exeuction),
+  // then we need to load and prepare the bitcode in the same way, and pass the module to 
+  // the searcher.
+  // This stuff is copied and pasted from how we prepare the regular bitcode.
+  std::vector<std::unique_ptr<llvm::Module>> compareModules;
+  if (CompareBitcode != "") {
+    if (!klee::loadFile(CompareBitcode, ctx, compareModules, errorMsg)) {
+      klee_error("error loading program '%s': %s", CompareBitcode.c_str(),
+                errorMsg.c_str());
+    }
+    // Load and link the whole files content. The assumption is that this is the
+    // application under test.
+    // Nothing gets removed in the first place.
+    std::unique_ptr<llvm::Module> M_Compare(klee::linkModules(
+        compareModules, "" /* link all modules together */, errorMsg));
+    if (!M_Compare) {
+      klee_error("error loading program '%s': %s", CompareBitcode.c_str(),
+                errorMsg.c_str());
+    }
 
-    std::string libcPrefix = (Libc == LibcType::UcLibc ? "__user_" : "");
-    preparePOSIX(loadedModules, libcPrefix);
-  }
+    llvm::Module *compareMainModule = M_Compare.get();
+    // Push the module as the first entry
+    compareModules.emplace_back(std::move(M_Compare));
 
-  if (WithUBSanRuntime) {
-    SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libkleeUBSan" + opt_suffix + ".bca");
-    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
-                        errorMsg))
-      klee_error("error loading UBSan support '%s': %s", Path.c_str(),
-                 errorMsg.c_str());
-  }
-
-  if (Libcxx) {
-#ifndef SUPPORT_KLEE_LIBCXX
-    klee_error("KLEE was not compiled with libc++ support");
-#else
-    SmallString<128> LibcxxBC(Opts.LibraryDir);
-    llvm::sys::path::append(LibcxxBC, KLEE_LIBCXX_BC_NAME);
-    if (!klee::loadFile(LibcxxBC.c_str(), mainModule->getContext(), loadedModules,
-                        errorMsg))
-      klee_error("error loading libc++ '%s': %s", LibcxxBC.c_str(),
-                 errorMsg.c_str());
-    klee_message("NOTE: Using libc++ : %s", LibcxxBC.c_str());
-#ifdef SUPPORT_KLEE_EH_CXX
-    SmallString<128> EhCxxPath(Opts.LibraryDir);
-    llvm::sys::path::append(EhCxxPath, "libkleeeh-cxx" + opt_suffix + ".bca");
-    if (!klee::loadFile(EhCxxPath.c_str(), mainModule->getContext(),
-                        loadedModules, errorMsg))
-      klee_error("error loading libklee-eh-cxx '%s': %s", EhCxxPath.c_str(),
-                 errorMsg.c_str());
-    klee_message("NOTE: Enabled runtime support for C++ exceptions");
-#else
-    klee_message("NOTE: KLEE was not compiled with support for C++ exceptions");
-#endif
-#endif
-  }
-
-  switch (Libc) {
-  case LibcType::KleeLibc: {
-    // FIXME: Find a reasonable solution for this.
-    SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path,
-                            "libkleeRuntimeKLEELibc" + opt_suffix + ".bca");
-    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
-                        errorMsg))
-      klee_error("error loading klee libc '%s': %s", Path.c_str(),
-                 errorMsg.c_str());
-  }
-  /* Falls through. */
-  case LibcType::FreestandingLibc: {
-    SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path,
-                            "libkleeRuntimeFreestanding" + opt_suffix + ".bca");
-    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
-                        errorMsg))
-      klee_error("error loading freestanding support '%s': %s", Path.c_str(),
-                 errorMsg.c_str());
-    break;
-  }
-  case LibcType::UcLibc:
-    linkWithUclibc(LibraryDir, opt_suffix, loadedModules);
-    break;
-  }
-
-  for (const auto &library : LinkLibraries) {
-    if (!klee::loadFile(library, mainModule->getContext(), loadedModules,
-                        errorMsg))
-      klee_error("error loading bitcode library '%s': %s", library.c_str(),
-                 errorMsg.c_str());
+    // Can we reuse Opts here?
+    prepareBitcode(compareModules, Opts, compareMainModule, LibraryDir, opt_suffix);
   }
 
   // FIXME: Change me to std types.
@@ -1395,7 +1443,9 @@ int main(int argc, char **argv, char **envp) {
   // Get the desired main function.  klee_main initializes uClibc
   // locale and other data and then calls main.
 
-  auto finalModule = interpreter->setModule(loadedModules, Opts);
+  std::vector<std::unique_ptr<llvm::Module>> *cmpModPtr = (CompareBitcode == "" ? nullptr : &compareModules);
+  auto finalModule = interpreter->setModule(loadedModules, Opts, cmpModPtr);
+
   Function *mainFn = finalModule->getFunction(EntryPoint);
   if (!mainFn) {
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
