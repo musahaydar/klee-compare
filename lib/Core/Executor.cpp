@@ -539,19 +539,6 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
     kmodule->instrument(opts);
   }
 
-  // prepare the compare module likewise
-  cmpModule = std::unique_ptr<KModule>(new KModule());
-  while (cmpModule->link(*compareModules, opts.EntryPoint)) {
-    // 2.) Apply different instrumentation
-    cmpModule->instrument(opts);
-  }
-
-  // NOTE: the way this is set up is such that if they provide a compare file but don't specify 
-  // the searcher type as "patch-searcher" (or whatever I called it), it may break things trying 
-  // to initialize it too early.
-  if (compareModules != nullptr) {
-    searcher = constructUserSearcher(*this);
-  }
 
   // 3.) Optimise and prepare for KLEE
 
@@ -570,6 +557,24 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
 
   kmodule->optimiseAndPrepare(opts, preservedFunctions);
   kmodule->checkModule();
+
+  // prepare the compare module likewise
+  if (!klee::loadFile(LibPath.c_str(), (*compareModules)[0]->getContext(), *compareModules,
+                      error)) {
+    klee_error("Could not load KLEE intrinsic file %s", LibPath.c_str());
+  }
+  cmpModule = std::unique_ptr<KModule>(new KModule());
+  while (cmpModule->link(*compareModules, opts.EntryPoint)) {
+    cmpModule->instrument(opts);
+  }
+  cmpModule->optimiseAndPrepare(opts, preservedFunctions);
+
+  // NOTE: the way this is set up is such that if they provide a compare file but don't specify 
+  // the searcher type as "patch-searcher" (or whatever I called it), it may break things trying 
+  // to initialize it too early.
+  if (compareModules != nullptr) {
+    searcher = constructUserSearcher(*this);
+  }
 
   // 4.) Manifest the module
   kmodule->manifest(interpreterHandler, StatsTracker::useStatistics());
