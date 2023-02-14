@@ -68,7 +68,7 @@ llvm::Function *getCallInstFunction(llvm::CallBase *cb) {
 
     llvm::Function *cfn = cb->getCalledFunction();
     if (!cfn) {
-        cfn = llvm::dyn_cast<llvm::Function>(cb->getCalledValue()->stripPointerCasts());
+        cfn = llvm::dyn_cast<llvm::Function>(cb->getCalledOperand()->stripPointerCasts());
     }
 
     if (cfn && !cfn->isIntrinsic()) {
@@ -159,10 +159,15 @@ PatchExplorer::PatchExplorer(Executor *executor)
 
                 // llvm::errs() << mainInstStr << "  vs  " << cmpInstStr << "\n";
                 if (!instructionsEqual(mainInstStr, cmpInstStr)) {
-                    llvm::errs() << "BB: ";
-                    mainBB->printAsOperand(llvm::errs(), false);
-                    llvm::errs() << " in function: " << func.getName().str() << " marked as different because differing instructions:\n\t";
-                    llvm::errs() << mainInstStr << " vs " << cmpInstStr << "\n";
+                    if (DEBUG_PRINTS) {
+                        llvm::errs() << "BB: ";
+                        mainBB->printAsOperand(llvm::errs(), false);
+                        llvm::errs() << " in function: " << func.getName().str() << " marked as different because differing instructions:\n\t";
+                        llvm::errs() << mainInstStr << " vs " << cmpInstStr << "\n";
+                    }
+
+                    bbweights[mainBB] = 1;
+                    break; // to next bb
                 }
 
                 mainBBIter++;
@@ -314,11 +319,11 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 possibleFns.insert(f);
             } else if (llvm::Function *f = cb->getCalledFunction()) {
                 possibleFns.insert(f);
-            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledValue())) {
+            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand())) {
                 llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
                 assert(f && "bad assumption about aliases!");
                 possibleFns.insert(f);
-            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledValue()->stripPointerCasts())) {
+            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand()->stripPointerCasts())) {
                 llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
                 assert(f && "bad assumption about aliases!");
                 possibleFns.insert(f);
@@ -326,9 +331,8 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 if (!cb->isIndirectCall()) llvm::errs() << *cb << "\n";
                 assert(cb->isIndirectCall());
 
-                // NOTE: Agamotto doesn't use the same module here...
                 for (llvm::Function &f : *mainModule) {
-                    for (unsigned i = 0; i < (unsigned)cb->getNumArgOperands(); ++i) {
+                    for (unsigned i = 0; i < (unsigned)cb->arg_size(); ++i) {
                         if (f.arg_size() <= i) {
                             if (f.isVarArg()) {
                                 possibleFns.insert(&f);
@@ -340,7 +344,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
                         llvm::Value *val = cb->getArgOperand(i);
 
                         if (arg->getType() != val->getType()) break;
-                        else if (i + 1 == cb->getNumArgOperands()) possibleFns.insert(&f);
+                        else if (i + 1 == cb->getNumOperands()) possibleFns.insert(&f);
                     }
                 }
             }
@@ -358,19 +362,36 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
     } while (changed);
 
-    dumpPriorities();
+    // dumpPriorities();
+}
+
+uint64_t PatchExplorer::get_priority(llvm::Instruction *inst) {
+    return priorities[inst];
 }
 
 void PatchExplorer::dumpPriorities() {
     for (llvm::Function &func : *mainModule) {
+        bool printedFunc = false;
+
         for (llvm::BasicBlock &bb : func) {
-            llvm::errs() << "\tBB: ";
-            bb.printAsOperand(llvm::errs(), false);
-            llvm::errs() << "\n";
+            bool printedBB = false;
 
             for (llvm::Instruction &inst : bb) {
                 auto p = priorities[&inst];
+
                 if (p != 0) {
+                    if (!printedFunc) {
+                        llvm::errs() << "Function: " << func.getName().str() << "\n";
+                        printedFunc = true;
+                    }
+
+                    if (!printedBB) {
+                        llvm::errs() << "\tBB: ";
+                        bb.printAsOperand(llvm::errs(), false);
+                        llvm::errs() << "\n";
+                        printedBB = true;
+                    }
+
                     llvm::errs() << "\t\t[" << p << "]: " << inst << "\n";
                 }
             }
