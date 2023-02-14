@@ -14,13 +14,21 @@ namespace klee {
 class PatchExplorer {
 public:
 
-// pointer to the main module
-llvm::Module *mainModule;
+    // pointer to the main module
+    llvm::Module *mainModule;
 
-// the module we want to compare against
-llvm::Module *cmpModule;
+    // the module we want to compare against
+    llvm::Module *cmpModule;
 
-PatchExplorer(Executor *executor);
+    PatchExplorer(Executor *executor);
+
+    // print all non-zero priorities to llvm::errs() for debugging
+    void dumpPriorities();
+
+private:
+
+    // priorities, should be access through get_priority function
+    std::unordered_map<llvm::Instruction*, uint64_t> priorities;
 
 };
 
