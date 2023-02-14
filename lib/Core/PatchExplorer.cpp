@@ -182,7 +182,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
     }
 
-    // STEP 3: compute and back propagate priorities
+    // STEP 2: compute and back propagate priorities
     // This routine is modified from Agamotto
     // https://github.com/efeslab/agamotto/blob/artifact-eval-osdi20/lib/Core/NvmHeuristics.cpp
     std::unordered_set<llvm::CallBase*> call_insts;
@@ -202,6 +202,85 @@ PatchExplorer::PatchExplorer(Executor *executor)
             }
         }
     }
+
+    /**
+    * We also need to fill in the weights for function calls.
+    * We'll just give a weight of one, prioritizes immediate instructions.
+    */
+    // TODO: this routine results in all instructions getting some weight, probably because we give weight
+    // the BB of the call sites (see comment below). This makes it un-obvious when to prune (eg. 0 priority)
+    // so before this, we should probably create instruction-level weights based on those BBs
+    bool c = false;
+    do {
+        c = false;
+        for (llvm::CallBase *cb : call_insts) {
+            assert(cb && "callbase is nullptr!");
+            std::unordered_set<llvm::Function *> possibleFns;
+            // errs() << *cb << "\n";
+            auto *tmp = llvm::dyn_cast<llvm::CallBase>(cb->stripPointerCasts());
+            if (tmp) {
+                cb = tmp;
+            }
+            assert(cb && "could not strip!");
+            if (llvm::Function *f = getCallInstFunction(cb)) {
+                possibleFns.insert(f);
+            } else if (llvm::Function *f = cb->getCalledFunction()) {
+                possibleFns.insert(f);
+            } else if (auto *f = llvm::dyn_cast<llvm::Function>(cb->getCalledOperand()->stripPointerCasts())) {
+                possibleFns.insert(f);
+            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand())) {
+                llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
+                assert(f && "bad assumption about aliases!");
+                possibleFns.insert(f);
+            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand()->stripPointerCasts())) {
+                llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
+                assert(f && "bad assumption about aliases!");
+                possibleFns.insert(f);
+            } else {
+                if (!cb->isIndirectCall()) {
+                    // llvm::errs() << *cb << "\n";
+                    // llvm::errs() << cb->getCalledOperand() << "\n";
+                    // if (cb->getCalledOperand()) llvm::errs() << *cb->getCalledOperand() << "\n";
+                    // if (cb->getCalledOperand()) llvm::errs() << *cb->getCalledOperand()->stripPointerCastsNoFollowAliases() << "\n";
+                    // if (cb->getCalledOperand()) llvm::errs() << llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand()->stripPointerCastsNoFollowAliases()) << "\n";
+                }
+                assert(cb->isIndirectCall());
+
+                for (llvm::Function &f : *mainModule) {
+                    for (unsigned i = 0; i < (unsigned)cb->arg_size(); ++i) {
+                        if (f.arg_size() <= i) {
+                            if (f.isVarArg()) {
+                                possibleFns.insert(&f);
+                            }
+                            break;
+                        }
+
+                        llvm::Argument *arg = f.arg_begin() + i;
+                        llvm::Value *val = cb->getArgOperand(i);
+
+                        if (arg->getType() != val->getType()) break;
+                        else if (i + 1 == cb->arg_size()) possibleFns.insert(&f);
+                    }
+                }
+            }
+
+            for (llvm::Function *f : possibleFns) {
+                for (llvm::BasicBlock &bb : *f) {
+                    for (llvm::Instruction &i : bb) {
+                        // since we have weights for the BBs, the call site gets its whole BB weighted
+                        // we should probably switch to instruction weights some time before this...
+                        if (bbweights[&bb] && !bbweights[llvm::dyn_cast<llvm::Instruction>(cb)->getParent()]) {
+                            c = true;
+                            bbweights[llvm::dyn_cast<llvm::Instruction>(cb)->getParent()] = 1;
+                            goto done;
+                        }
+                    }
+                }
+            }
+
+            done: (void)0;
+        }
+    } while (c);
 
     for (llvm::Function &f : *mainModule) {
         if (f.empty()) continue;
@@ -344,7 +423,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
                         llvm::Value *val = cb->getArgOperand(i);
 
                         if (arg->getType() != val->getType()) break;
-                        else if (i + 1 == cb->getNumOperands()) possibleFns.insert(&f);
+                        else if (i + 1 == cb->arg_size()) possibleFns.insert(&f);
                     }
                 }
             }
@@ -365,8 +444,8 @@ PatchExplorer::PatchExplorer(Executor *executor)
     // dumpPriorities();
 }
 
-uint64_t PatchExplorer::get_priority(llvm::Instruction *inst) {
-    return priorities[inst];
+uint64_t PatchExplorer::getPriority(llvm::Instruction *inst) {
+    return (priorities.count(inst) ? priorities.at(inst) : 0);
 }
 
 void PatchExplorer::dumpPriorities() {

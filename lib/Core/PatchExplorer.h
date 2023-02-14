@@ -25,7 +25,7 @@ public:
     // print all non-zero priorities to llvm::errs() for debugging
     void dumpPriorities();
 
-    uint64_t get_priority(llvm::Instruction *inst);
+    uint64_t getPriority(llvm::Instruction *inst);
 
 private:
 
