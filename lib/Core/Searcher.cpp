@@ -555,6 +555,20 @@ void InterleavedSearcher::printName(llvm::raw_ostream &os) {
 
 ///
 
+bool PatchPriority::StatePriority::operator<(const PatchPriority::StatePriority &other) const {
+  bool youngerState = state->steppedInstructions < other.state->steppedInstructions;
+  bool lowerPriority = priority < other.priority;
+  bool equalPriority = priority == other.priority; 
+
+  if (lowerPriority) {
+    return true;
+  } else if (equalPriority && youngerState) {
+    return true;
+  }
+  
+  return false;
+};
+
 PatchPriority::PatchPriority(Executor *executor) {
   // initialize the patch explorer object which computes the priorities we'll use
   patchExplorer = new PatchExplorer(executor);
@@ -565,24 +579,27 @@ PatchPriority::~PatchPriority() {
 }
 
 ExecutionState &PatchPriority::selectState() {
-  return *states.back();
+  // take the largest element from the set and remove it 
+  auto iter = states.rbegin();
+  lastState = iter->state;
+  return *lastState;
 }
 
 void PatchPriority::update(ExecutionState *current,
                          const std::vector<ExecutionState *> &addedStates,
                          const std::vector<ExecutionState *> &removedStates) {
-  // insert states
-  states.insert(states.end(), addedStates.begin(), addedStates.end());
+  // add states
+  for (ExecutionState *execState : addedStates) {
+    uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
+    states.insert({execState, priority});
+  }
 
   // remove states
-  for (const auto state : removedStates) {
-    if (state == states.back()) {
-      states.pop_back();
-    } else {
-      auto it = std::find(states.begin(), states.end(), state);
-      assert(it != states.end() && "invalid state removed");
-      states.erase(it);
-    }
+  for (ExecutionState *execState : removedStates) {
+    uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
+    auto it = states.find({execState, priority});
+    assert(it != states.end() && " could not find a removed state");
+    states.erase(it);
   }
 }
 

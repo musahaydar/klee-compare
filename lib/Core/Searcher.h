@@ -320,8 +320,24 @@ namespace klee {
   /// program, as an addition for Klee-Compare.
   /// TODO: implement the different pruning strategies we can take here
   class PatchPriority final : public Searcher {
+  private:
+    // based on Agamotto's searcher, used by a priority queue
+    // https://github.com/efeslab/agamotto/blob/artifact-eval-osdi20/lib/Core/Searcher.h
+    struct StatePriority {
+      ExecutionState *state;
+      uint64_t priority;
+
+      StatePriority(ExecutionState *s, uint64_t p) : state(s), priority(p) {}
+
+      // Determine if LHS < RHS. To break ties, newer states have lower priority.
+      bool operator<(const StatePriority &other) const;
+    };
+
     PatchExplorer *patchExplorer;
-    std::vector<ExecutionState*> states;
+    ExecutionState *lastState;
+
+    // using a set instead of stl priority_queue because this gives us random element deletion
+    std::multiset<StatePriority> states;
 
   public:
     PatchPriority(Executor *executor);
