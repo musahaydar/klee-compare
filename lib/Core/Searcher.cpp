@@ -591,15 +591,18 @@ void PatchPriority::update(ExecutionState *current,
   // add states
   for (ExecutionState *execState : addedStates) {
     uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
-    states.insert({execState, priority});
+    StatePriority *sp = new StatePriority(execState, priority);
+    states.insert(*sp);
+    stateToPriorities[execState] = sp;
   }
 
   // remove states
   for (ExecutionState *execState : removedStates) {
-    uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
-    auto it = states.find({execState, priority});
-    assert(it != states.end() && " could not find a removed state");
-    states.erase(it);
+    assert(stateToPriorities.count(execState) && " could not find a removed state");
+    StatePriority *sp = stateToPriorities[execState];
+    states.erase(*sp);
+    stateToPriorities.erase(execState);
+    delete sp;
   }
 }
 

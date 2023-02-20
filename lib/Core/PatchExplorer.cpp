@@ -446,6 +446,8 @@ PatchExplorer::PatchExplorer(Executor *executor)
 
 uint64_t PatchExplorer::getPriority(llvm::Instruction *inst) {
     return (priorities.count(inst) ? priorities.at(inst) : 0);
+    // assert(priorities.count(inst) && " instruction has no priority");
+    // return priorities.at(inst);
 }
 
 void PatchExplorer::dumpPriorities() {

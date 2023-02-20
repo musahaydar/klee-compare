@@ -339,6 +339,10 @@ namespace klee {
     // using a set instead of stl priority_queue because this gives us random element deletion
     std::multiset<StatePriority> states;
 
+    // kind of hack but I need a way to remove a state where priority can change
+    // map from pointer of execution state to the statePriority we made for it
+    std::unordered_map<ExecutionState *, StatePriority *> stateToPriorities;
+
   public:
     PatchPriority(Executor *executor);
     ~PatchPriority();
