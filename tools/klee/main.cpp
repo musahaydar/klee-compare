@@ -186,6 +186,12 @@ namespace {
                    cl::desc("Link with POSIX runtime. Options that can be passed as arguments to the programs are: --sym-arg <max-len>  --sym-args <min-argvs> <max-argvs> <max-len> + file model options (default=false)."),
                    cl::init(false),
                    cl::cat(LinkCat));
+  
+  cl::opt<bool>
+  ComparePOSIX("posix-compare",
+               cl::desc("Use the POSIX modified for KLEE Compare (for concrete input exeuctions)"),
+               cl::init(false),
+               cl::cat(LinkCat));
 
   cl::opt<bool> WithUBSanRuntime("ubsan-runtime",
                                  cl::desc("Link with UBSan runtime."),
@@ -1136,7 +1142,11 @@ static void prepareBitcode(std::vector<std::unique_ptr<llvm::Module>> &loadedMod
 
   if (WithPOSIXRuntime) {
     SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libkleeRuntimePOSIX" + opt_suffix + ".bca");
+    if (ComparePOSIX) {
+      llvm::sys::path::append(Path, "libkleeRuntimePOSIXCompare" + opt_suffix + ".bca");
+    } else {
+      llvm::sys::path::append(Path, "libkleeRuntimePOSIX" + opt_suffix + ".bca");
+    }
     klee_message("NOTE: Using POSIX model: %s", Path.c_str());
     if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
                         errorMsg))
@@ -1312,6 +1322,30 @@ int main(int argc, char **argv, char **envp) {
     klee_error("error loading program '%s': %s", InputFile.c_str(),
                errorMsg.c_str());
   }
+
+  // rename symbols if KLEE-Compare
+  // the idea here is that when we're running the concrete execution, we want to save the externally
+  // visible outputs (system calls e.g. "printf"), so we'll link against the POSIX-Compare runtime to
+  // intercept and dump the outputs of these calls. We'll rename the symbols here so that way we can still
+  // access the C library headers of these functions in our version, which is named like "kcmp_printf"
+  if (ComparePOSIX) {
+    // list of functions we want to rename for KLEE-Comare
+    // TODO: this shouldn't be hardcoded here
+    std::vector<std::string> renameSymbols{
+      "printf",
+      "vfprintf",
+      "fputs",
+      "fputc",
+      "fwrite"
+    };
+
+    for (size_t i = 0; i < loadedModules.size(); ++i) {
+      for (std::string funcName : renameSymbols) {
+        replaceOrRenameFunction(loadedModules[i].get(), funcName.c_str(), std::string("kcmp_" + funcName).c_str());
+      }
+    }
+  }
+
   // Load and link the whole files content. The assumption is that this is the
   // application under test.
   // Nothing gets removed in the first place.

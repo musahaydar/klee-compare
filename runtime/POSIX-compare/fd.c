@@ -406,9 +406,78 @@ ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
-ssize_t write(int fd, const void *buf, size_t count) {
-  klee_warning("(TODO) Klee-Compare will miss this write call!");
+// Don't use this unless it's the concrete exeuction of KLEE
+int kcmp_printf(const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
 
+  // dump the print to a file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  vfprintf(dumpfd, fmt, args);
+  fclose(dumpfd);
+
+  // let the print go through to the terminal
+  vprintf(fmt, args);
+
+  // TODO: this breaks things. using hardcoded path above instead
+  // use an env var from KLEE to output to KLEE's output dir
+  // char path[128]; // just hardcode some max lenght for the file path
+  // strcpy(path, getenv("KLEE_OUTPUT_PATH"));
+  // strcat(path, "/write_dump.txt");
+  
+  // TODO: this if statement should check if the getenv failed
+  // if (1) {
+  //   FILE *dumpfd = fopen(path, "a+");
+  //   vfprintf(dumpfd, fmt, args);
+  //   fclose(dumpfd);
+  // }
+
+  va_end(args);
+  return 0;
+}
+
+int kcmp_fputs(const char *str, FILE *stream) {
+  // dump the string to the file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  fputs(str, dumpfd);
+  fclose(dumpfd);
+
+  // and to the original stream
+  // should preserve any error return values to original caller
+  return fputs(str, stream);
+}
+
+int kcmp_fputc(int chr, FILE *stream) {
+  // dump the char to the file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  fputc(chr, dumpfd);
+  fclose(dumpfd);
+
+  // and to the original stream
+  return fputc(chr, stream);
+}
+
+int kcmp_vfprintf (FILE * stream, const char *fmt, va_list args) {
+  // dump to the output file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  vfprintf(dumpfd, fmt, args);
+  fclose(dumpfd);
+
+  // and to the original stream
+  return vfprintf(stream, fmt, args);
+}
+
+size_t kcmp_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
+  // dump to the output file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  fwrite(ptr, size, nmemb, dumpfd);
+  fclose(dumpfd);
+
+  // and to the original stream
+  return fwrite(ptr, size, nmemb, stream);
+}
+
+ssize_t write(int fd, const void *buf, size_t count) {
   static int n_calls = 0;
   exe_file_t *f;
 

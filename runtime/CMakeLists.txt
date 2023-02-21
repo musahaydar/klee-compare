@@ -105,8 +105,9 @@ if (ENABLE_KLEE_EH_CXX)
 endif ()
 
 if (ENABLE_POSIX_RUNTIME)
-    list(APPEND RUNTIME_LIBRARIES RuntimePOSIX)
+    list(APPEND RUNTIME_LIBRARIES RuntimePOSIX RuntimePOSIXCompare)
     add_subdirectory(POSIX)
+    add_subdirectory(POSIX-compare)
 endif ()
 
 list(APPEND RUNTIME_LIBRARIES UBSan)
