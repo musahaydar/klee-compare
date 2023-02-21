@@ -126,10 +126,11 @@ namespace {
 
 /*** Test generation options ***/
 
+// Musa: made this false by default in KLEE-Compare for convenience
 cl::opt<bool> DumpStatesOnHalt(
     "dump-states-on-halt",
-    cl::init(true),
-    cl::desc("Dump test cases for all active states on exit (default=true)"),
+    cl::init(false),
+    cl::desc("Dump test cases for all active states on exit (default=false)"),
     cl::cat(TestGenCat));
 
 cl::opt<bool> OnlyOutputStatesCoveringNew(

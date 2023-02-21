@@ -590,7 +590,16 @@ void PatchPriority::update(ExecutionState *current,
                          const std::vector<ExecutionState *> &removedStates) {
   // add states
   for (ExecutionState *execState : addedStates) {
-    uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
+    llvm::Instruction *inst = execState->pc->inst;
+    uint64_t priority = patchExplorer->getPriority(inst);
+
+    // prune branches and function calls with 0 priority (they won't take us to interesting code)
+    if (isa<llvm::CallInst>(inst) || isa<llvm::BranchInst>(inst)) {
+      if (priority == 0) {
+        continue;
+      }
+    }
+
     StatePriority *sp = new StatePriority(execState, priority);
     states.insert(*sp);
     stateToPriorities[execState] = sp;
@@ -613,7 +622,7 @@ bool PatchPriority::empty() {
 // this function returns true when we've explored all the states we want to explore
 // based on the pruning strategy we're using here
 bool PatchPriority::done() {
-  return false;
+  return states.empty();
 }
 
 void PatchPriority::printName(llvm::raw_ostream &os) {
