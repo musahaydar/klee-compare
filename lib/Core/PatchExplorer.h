@@ -22,10 +22,13 @@ public:
 
     PatchExplorer(Executor *executor);
 
+    uint64_t getPriority(llvm::Instruction *inst);
+
     // print all non-zero priorities to llvm::errs() for debugging
     void dumpPriorities();
 
-    uint64_t getPriority(llvm::Instruction *inst);
+    // print out the entire program for debugging purposes
+    void dumpProgram();
 
 private:
 

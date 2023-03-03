@@ -590,11 +590,12 @@ void PatchPriority::update(ExecutionState *current,
                          const std::vector<ExecutionState *> &removedStates) {
   // add states
   for (ExecutionState *execState : addedStates) {
-    llvm::Instruction *inst = execState->pc->inst;
-    uint64_t priority = patchExplorer->getPriority(inst);
+    uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
 
-    // prune branches and function calls with 0 priority (they won't take us to interesting code)
-    if (isa<llvm::CallInst>(inst) || isa<llvm::BranchInst>(inst)) {
+    // if this instruction was the result of a branch or a function call and it 
+    // has 0 prioirty, it won't take us to patched code, so prune it
+    // TODO: only prune if this state did not come after code modified by the patch
+    if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
       if (priority == 0) {
         continue;
       }

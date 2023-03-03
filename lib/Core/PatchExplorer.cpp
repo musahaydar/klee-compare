@@ -202,6 +202,9 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 // the weight by the size of the BB to achieve this (the weight should be a 0 or 1)
                 instweights[&i] = bbweights[&b] * b.size();
 
+                // use this to print weights as priorities
+                // priorities[&i] = instweights[&i];
+
                 // store pointers to call sites
                 if (llvm::CallBase *cb = llvm::dyn_cast<llvm::CallBase>(&i)) {
                     if (auto *ci = llvm::dyn_cast<llvm::CallInst>(cb)) {
@@ -213,10 +216,8 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
     }
 
-    /**
-    * We also need to fill in the weights for function calls.
-    * We'll just give a weight of one, prioritizes immediate instructions.
-    */
+    // We also need to fill in the weights for function calls.
+    // We'll just give a weight of one, prioritizes immediate instructions.
     bool c = false;
     do {
         c = false;
@@ -367,84 +368,84 @@ PatchExplorer::PatchExplorer(Executor *executor)
     * We're actually still not done. For each function, the base priority needs to
     * be boosted by the priority of the call site return locations.
     */
-    // bool changed = false;
-    // do {
-    //     changed = false;
-    //     for (llvm::Function &f : *mainModule) {
-    //         if (f.empty()) continue;
-    //         for (llvm::Use &u : f.uses()) {
-    //             llvm::User *usr = u.getUser();
-    //             // errs() << "usr:" << *usr << "\n";
-    //             if (auto *cb = llvm::dyn_cast<llvm::CallBase>(usr)) {
-    //                 // errs() << "\t=> " << priorities[i] << "\n";
-    //                 llvm::Instruction *retLoc = getReturnLocation(cb);
-    //                 assert(retLoc);
-    //                 // errs() << "\t=> " << priorities[retLoc] << "\n";
-    //                 if (priorities[retLoc]) {
-    //                     for (llvm::BasicBlock &bb : f) {
-    //                         for (llvm::Instruction &ii : bb) {
-    //                             if (!priorities[&ii]) {
-    //                                 changed = true;
-    //                                 priorities[&ii] = priorities[retLoc];
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
+    bool changed = false;
+    do {
+        changed = false;
+        for (llvm::Function &f : *mainModule) {
+            if (f.empty()) continue;
+            for (llvm::Use &u : f.uses()) {
+                llvm::User *usr = u.getUser();
+                // errs() << "usr:" << *usr << "\n";
+                if (auto *cb = llvm::dyn_cast<llvm::CallBase>(usr)) {
+                    // errs() << "\t=> " << priorities[i] << "\n";
+                    llvm::Instruction *retLoc = getReturnLocation(cb);
+                    assert(retLoc);
+                    // errs() << "\t=> " << priorities[retLoc] << "\n";
+                    if (priorities[retLoc]) {
+                        for (llvm::BasicBlock &bb : f) {
+                            for (llvm::Instruction &ii : bb) {
+                                if (!priorities[&ii]) {
+                                    changed = true;
+                                    priorities[&ii] = priorities[retLoc];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-    //     for (llvm::CallBase *cb : call_insts) {
-    //         llvm::Instruction *retLoc = getReturnLocation(cb);
-    //         assert(retLoc);
+        for (llvm::CallBase *cb : call_insts) {
+            llvm::Instruction *retLoc = getReturnLocation(cb);
+            assert(retLoc);
 
-    //         std::unordered_set<llvm::Function*> possibleFns;
-    //         if (llvm::Function *f = getCallInstFunction(cb)) {
-    //             possibleFns.insert(f);
-    //         } else if (llvm::Function *f = cb->getCalledFunction()) {
-    //             possibleFns.insert(f);
-    //         } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand())) {
-    //             llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
-    //             assert(f && "bad assumption about aliases!");
-    //             possibleFns.insert(f);
-    //         } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand()->stripPointerCasts())) {
-    //             llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
-    //             assert(f && "bad assumption about aliases!");
-    //             possibleFns.insert(f);
-    //         } else {
-    //             if (!cb->isIndirectCall()) llvm::errs() << *cb << "\n";
-    //             assert(cb->isIndirectCall());
+            std::unordered_set<llvm::Function*> possibleFns;
+            if (llvm::Function *f = getCallInstFunction(cb)) {
+                possibleFns.insert(f);
+            } else if (llvm::Function *f = cb->getCalledFunction()) {
+                possibleFns.insert(f);
+            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand())) {
+                llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
+                assert(f && "bad assumption about aliases!");
+                possibleFns.insert(f);
+            } else if (llvm::GlobalAlias *ga = llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand()->stripPointerCasts())) {
+                llvm::Function *f = llvm::dyn_cast<llvm::Function>(ga->getAliasee());
+                assert(f && "bad assumption about aliases!");
+                possibleFns.insert(f);
+            } else {
+                if (!cb->isIndirectCall()) llvm::errs() << *cb << "\n";
+                assert(cb->isIndirectCall());
 
-    //             for (llvm::Function &f : *mainModule) {
-    //                 for (unsigned i = 0; i < (unsigned)cb->arg_size(); ++i) {
-    //                     if (f.arg_size() <= i) {
-    //                         if (f.isVarArg()) {
-    //                             possibleFns.insert(&f);
-    //                         }
-    //                         break;
-    //                     }
+                for (llvm::Function &f : *mainModule) {
+                    for (unsigned i = 0; i < (unsigned)cb->arg_size(); ++i) {
+                        if (f.arg_size() <= i) {
+                            if (f.isVarArg()) {
+                                possibleFns.insert(&f);
+                            }
+                            break;
+                        }
 
-    //                     llvm::Argument *arg = f.arg_begin() + i;
-    //                     llvm::Value *val = cb->getArgOperand(i);
+                        llvm::Argument *arg = f.arg_begin() + i;
+                        llvm::Value *val = cb->getArgOperand(i);
 
-    //                     if (arg->getType() != val->getType()) break;
-    //                     else if (i + 1 == cb->arg_size()) possibleFns.insert(&f);
-    //                 }
-    //             }
-    //         }
+                        if (arg->getType() != val->getType()) break;
+                        else if (i + 1 == cb->arg_size()) possibleFns.insert(&f);
+                    }
+                }
+            }
 
-    //         for (llvm::Function *f : possibleFns) {
-    //             for (llvm::BasicBlock &bb : *f) {
-    //                 for (llvm::Instruction &i : bb) {
-    //                     if (!priorities[&i] && priorities[retLoc]) {
-    //                         changed = true;
-    //                         priorities[&i] = priorities[retLoc];
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // } while (changed);
+            for (llvm::Function *f : possibleFns) {
+                for (llvm::BasicBlock &bb : *f) {
+                    for (llvm::Instruction &i : bb) {
+                        if (!priorities[&i] && priorities[retLoc]) {
+                            changed = true;
+                            priorities[&i] = priorities[retLoc];
+                        }
+                    }
+                }
+            }
+        }
+    } while (changed);
 
     // dumpPriorities();
 }
@@ -480,6 +481,23 @@ void PatchExplorer::dumpPriorities() {
 
                     llvm::errs() << "\t\t[" << p << "]: " << inst << "\n";
                 }
+            }
+        }
+    }
+}
+
+void PatchExplorer::dumpProgram() {
+    for (llvm::Function &func : *mainModule) {
+        llvm::errs() << "Function: " << func.getName().str() << "\n";
+
+        for (llvm::BasicBlock &bb : func) {
+            llvm::errs() << "\tBB: ";
+            bb.printAsOperand(llvm::errs(), false);
+            llvm::errs() << "\n";
+            
+
+            for (llvm::Instruction &inst : bb) {
+                llvm::errs() << "\t\tInstruction:" << inst << "\n";
             }
         }
     }
