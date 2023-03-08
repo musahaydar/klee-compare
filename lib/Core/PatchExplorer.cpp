@@ -239,11 +239,11 @@ PatchExplorer::PatchExplorer(Executor *executor)
     // next, now we need to make another pass through all the BBs with equivalences and check that their
     // control flow is also equivalent
     for (auto iter : bbEquivSets) {
-        auto bbSuccIter = llvm::succ_begin(iter.first);
         bool foundEquiv = false;
 
         // we check all equivalent BBs ensuring that there's at least one with equivalent control flow too
         for (auto cmpIter : iter.second) {
+            auto bbSuccIter = llvm::succ_begin(iter.first);
             auto cmpBBSuccIter = llvm::succ_begin(cmpIter);
             bool skip = false;
 
@@ -274,6 +274,8 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
 
         if (!foundEquiv) {
+            // TODO: do we want to give weight to this BB as differening because of the changed branch
+            // or is the differing successor what we want to explore?
             bbweights[iter.first] = 1;
         }
     }
