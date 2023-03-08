@@ -156,7 +156,8 @@ PatchExplorer::PatchExplorer(Executor *executor)
     std::unordered_map<llvm::BasicBlock *, int> bbweights;
 
     // map of equivalence between BBs (patched -> original) for checking control flow
-    std::unordered_map<llvm::BasicBlock *, llvm::BasicBlock *> bbEquivMap;
+    // use a set for the case of multiple equivalent blocks
+    std::unordered_map<llvm::BasicBlock *, std::unordered_set<llvm::BasicBlock *>> bbEquivSets;
     
     for (llvm::Function &func : *mainModule) {
         // llvm::errs() << "Function: " << func.getName().str() << "\n";
@@ -227,7 +228,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 }
                 
                 if (foundEquiv) {
-                    bbEquivMap[&bb] = &cmpBB;
+                    bbEquivSets[&bb].insert(&cmpBB);
                     bbweights[&bb] = 0;
                     // break; // to next bb in mainFunc
                 }
@@ -237,27 +238,42 @@ PatchExplorer::PatchExplorer(Executor *executor)
 
     // next, now we need to make another pass through all the BBs with equivalences and check that their
     // control flow is also equivalent
-    for (auto iter : bbEquivMap) {
+    for (auto iter : bbEquivSets) {
         auto bbSuccIter = llvm::succ_begin(iter.first);
-        auto cmpBBSuccIter = llvm::succ_begin(iter.second);
+        bool foundEquiv = false;
 
-        while (bbSuccIter != llvm::succ_end(iter.first)) {
-            // check if we are out of successors of cmpBB (differing control flow)
-            if(cmpBBSuccIter == llvm::succ_end(iter.second)) {
-                bbweights[iter.first] = 1;
-                break;
+        // we check all equivalent BBs ensuring that there's at least one with equivalent control flow too
+        for (auto cmpIter : iter.second) {
+            auto cmpBBSuccIter = llvm::succ_begin(cmpIter);
+            bool skip = false;
+
+            while (bbSuccIter != llvm::succ_end(iter.first)) {
+                // check if we are out of successors of cmpBB (differing control flow)
+                if(cmpBBSuccIter == llvm::succ_end(cmpIter)) {
+                    skip = true;
+                    break; // to next equiv cmpBB
+                }
+
+                if (bbEquivSets.count(*bbSuccIter) == 0 || bbEquivSets[*bbSuccIter].count(*cmpBBSuccIter) == 0) {
+                    // the control flow has changed for this basic block by the patch
+                    skip = true;
+                    break; // to next equiv cmpBB
+                }
+                ++bbSuccIter;
+                ++cmpBBSuccIter;
             }
 
-            if (bbEquivMap.count(*bbSuccIter) == 0 || bbEquivMap[*bbSuccIter] != *cmpBBSuccIter) {
-                // the control flow has changed for this basic block by the patch
-                bbweights[iter.first] = 1;
+            // check if there are more successors of cmpBB (differing control flow)
+            if(cmpBBSuccIter != llvm::succ_end(cmpIter) || skip) {
+                continue; // to next equiv cmpBB
             }
-            ++bbSuccIter;
-            ++cmpBBSuccIter;
+
+            // if we made it through all the checks, we found an equiv BB and we're done
+            foundEquiv = true;
+            break;
         }
 
-        // check if there are more successors of cmpBB (differing control flow)
-        if(cmpBBSuccIter != llvm::succ_end(iter.second)) {
+        if (!foundEquiv) {
             bbweights[iter.first] = 1;
         }
     }
