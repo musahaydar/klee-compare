@@ -57,13 +57,13 @@ bool instructionStringsEquiv(std::string inst1, std::string inst2) {
 
 // recursively check that two instructions are equivalent (i.e. they are identical except for operand names,
 // and their operands are defined in equivalent instructions)
-bool instructionsEquiv(llvm::Instruction *inst1, llvm::Instruction *inst2, std::unordered_map<llvm::Instruction *, bool> &memo) {
+bool instructionsEquiv(llvm::Instruction *inst1, llvm::Instruction *inst2, std::unordered_map<llvm::Instruction *, llvm::Instruction *> &memo) {
     // branches we should compare for equivalent bb targets, not using this function
     assert(!llvm::isa<llvm::BranchInst>(inst1));
 
     // check the memo first to avoid redundant calls
-    if (memo.count(inst1) != 0) {
-        return memo[inst1];
+    if (memo.count(inst1) != 0 && memo[inst1] == inst2) {
+        return true;
     }
 
     // check if the two instructions are syntactically equivalent
@@ -76,7 +76,6 @@ bool instructionsEquiv(llvm::Instruction *inst1, llvm::Instruction *inst2, std::
             llvm::errs() << "Inst: " << inst1string << " vs " << inst2string << " not equiv: strings\n";
         }
 
-        memo[inst1] = false;
         return false;
     }
 
@@ -92,7 +91,6 @@ bool instructionsEquiv(llvm::Instruction *inst1, llvm::Instruction *inst2, std::
                 // cutting a corner here by requiring the operands appear in the same order
                 // so unless both are constants (we've already determined they're equal in the string)
                 // we'll say the instructions are not equivalent
-                memo[inst1] = false;
                 return false;
             }
             continue;
@@ -108,13 +106,12 @@ bool instructionsEquiv(llvm::Instruction *inst1, llvm::Instruction *inst2, std::
 
         bool res = instructionsEquiv(inst1opDef, inst2opDef, memo);
         if (!res) {
-            memo[inst1] = false;
             return false;
         }
     }
 
     // at this point, we've determined that the instructions are equivalent
-    memo[inst1] = true;
+    memo[inst1] = inst2;
     return true;
 }
 
@@ -157,6 +154,9 @@ PatchExplorer::PatchExplorer(Executor *executor)
 
     // STEP 1: compute weights of BBs
     std::unordered_map<llvm::BasicBlock *, int> bbweights;
+
+    // map of equivalence between BBs (patched -> original) for checking control flow
+    std::unordered_map<llvm::BasicBlock *, llvm::BasicBlock *> bbEquivMap;
     
     for (llvm::Function &func : *mainModule) {
         // llvm::errs() << "Function: " << func.getName().str() << "\n";
@@ -174,7 +174,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
         
         // memo used for recursively checking equivalence in instructions, instantiated per function
-        std::unordered_map<llvm::Instruction *, bool> instEquivMemo;
+        std::unordered_map<llvm::Instruction *, llvm::Instruction *> instEquivMemo;
 
         // for each BasicBlock, check every block in the cmpFunc and see if any are equivalent
         for (llvm::BasicBlock &bb : func) {
@@ -227,9 +227,9 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 }
                 
                 if (foundEquiv) {
-                    // TODO: store the equivalance map
+                    bbEquivMap[&bb] = &cmpBB;
                     bbweights[&bb] = 0;
-                    break; // to next bb in mainFunc
+                    // break; // to next bb in mainFunc
                 }
             }
         }
@@ -237,7 +237,30 @@ PatchExplorer::PatchExplorer(Executor *executor)
 
     // next, now we need to make another pass through all the BBs with equivalences and check that their
     // control flow is also equivalent
-    // TODO
+    for (auto iter : bbEquivMap) {
+        auto bbSuccIter = llvm::succ_begin(iter.first);
+        auto cmpBBSuccIter = llvm::succ_begin(iter.second);
+
+        while (bbSuccIter != llvm::succ_end(iter.first)) {
+            // check if we are out of successors of cmpBB (differing control flow)
+            if(cmpBBSuccIter == llvm::succ_end(iter.second)) {
+                bbweights[iter.first] = 1;
+                break;
+            }
+
+            if (bbEquivMap.count(*bbSuccIter) == 0 || bbEquivMap[*bbSuccIter] != *cmpBBSuccIter) {
+                // the control flow has changed for this basic block by the patch
+                bbweights[iter.first] = 1;
+            }
+            ++bbSuccIter;
+            ++cmpBBSuccIter;
+        }
+
+        // check if there are more successors of cmpBB (differing control flow)
+        if(cmpBBSuccIter != llvm::succ_end(iter.second)) {
+            bbweights[iter.first] = 1;
+        }
+    }
 
     // STEP 2: compute and back propagate priorities
     // This routine is modified from Agamotto
@@ -504,7 +527,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
     //     }
     // } while (changed);
 
-    // dumpPriorities();
+    dumpPriorities();
 }
 
 uint64_t PatchExplorer::getPriority(llvm::Instruction *inst) {
