@@ -244,6 +244,10 @@ int main(int argc, char **argv) {
     // TODO: these arguments should be set as options for klee-compare and passed through to klee
     string klee_command_prefix = string(klee_path) + "/klee --libc=uclibc --posix-runtime";
     string klee_command = klee_command_prefix + " --output-dir " + outdir_klee;
+
+    // use patch-directed symbolic execution (TODO: make this a program option)
+    klee_command += " --search patch-priority --compare-bitcode " + CompareFile;
+
     for (unsigned i = 0; i < InputArgv.size() + 1; i++) {
         string &arg = (i==0 ? TargetFile : InputArgv[i-1]);
         klee_command += " " + arg;
