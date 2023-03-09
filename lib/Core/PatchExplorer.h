@@ -24,6 +24,10 @@ public:
 
     uint64_t getPriority(llvm::Instruction *inst);
 
+    // check if an instruction is patch code
+    // does this by checking if parent BB is in patchInstructions set
+    bool isPatchCode(llvm::Instruction *inst);
+
     // print all non-zero priorities to llvm::errs() for debugging
     void dumpPriorities();
 
@@ -33,8 +37,11 @@ public:
 private:
 
     // priorities, should be access through get_priority function
-    std::unordered_map<llvm::Instruction*, uint64_t> priorities;
+    std::unordered_map<llvm::Instruction *, uint64_t> priorities;
 
+    // these instructions are all considered "patch code"
+    // after executig any of these, we want to explore the remaining program entirely
+    std::unordered_set<llvm::BasicBlock *> patchInstructions;
 };
 
 }

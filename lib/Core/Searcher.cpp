@@ -590,14 +590,24 @@ void PatchPriority::update(ExecutionState *current,
                          const std::vector<ExecutionState *> &removedStates) {
   // add states
   for (ExecutionState *execState : addedStates) {
+    // if the previous state we got here from ran patched code or this state will run patch code, mark it
+    if (current && current->ranPatchedCode) {
+      execState->ranPatchedCode = true;
+    }
+
+    if (patchExplorer->isPatchCode(execState->pc->inst)) {
+      execState->ranPatchedCode = true;
+    }
+
     uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
 
-    // if this instruction was the result of a branch or a function call and it 
-    // has 0 prioirty, it won't take us to patched code, so prune it
-    // TODO: only prune if this state did not come after code modified by the patch
-    if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
-      if (priority == 0) {
-        continue;
+    // we prune paths if they are the result of branch/call, have 0 priority (i.e. will not reach patched
+    // code) AND we have not previously run patched code up to this state
+    if (!execState->ranPatchedCode) {
+      if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
+        if (priority == 0) {
+          continue;
+        }
       }
     }
 

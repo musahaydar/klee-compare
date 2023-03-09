@@ -183,6 +183,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
         for (llvm::BasicBlock &bb : func) {
             // initialize weight to be 1 in case we don't find an equiv BB
             bbweights[&bb] = 1;
+            patchInstructions.insert(&bb);
 
             for (llvm::BasicBlock &cmpBB : *cmpFunc) {
                 // init to true, set to false if this BB we're checking was not equiv
@@ -232,6 +233,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 if (foundEquiv) {
                     bbEquivSets[&bb].insert(&cmpBB);
                     bbweights[&bb] = 0;
+                    patchInstructions.erase(&bb);
                     // break; // to next bb in mainFunc
                 }
             }
@@ -279,6 +281,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
             // TODO: do we want to give weight to this BB as differening because of the changed branch
             // or is the differing successor what we want to explore?
             bbweights[iter.first] = 1;
+            patchInstructions.insert(iter.first);
         }
     }
 
@@ -557,6 +560,10 @@ uint64_t PatchExplorer::getPriority(llvm::Instruction *inst) {
     return (priorities.count(inst) ? priorities.at(inst) : 0);
     // assert(priorities.count(inst) && " instruction has no priority");
     // return priorities.at(inst);
+}
+
+bool PatchExplorer::isPatchCode(llvm::Instruction *inst) {
+    return (patchInstructions.count(inst->getParent()) > 0);
 }
 
 void PatchExplorer::dumpPriorities() {

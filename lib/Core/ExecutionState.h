@@ -240,6 +240,9 @@ public:
   /// @brief Disables forking for this state. Set by user code
   bool forkDisabled = false;
 
+  /// Any state previous to and including this state has run patched code
+  bool ranPatchedCode = false;
+
 public:
 #ifdef KLEE_UNITTEST
   // provide this function only in the context of unittests
