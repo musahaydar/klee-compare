@@ -406,6 +406,8 @@ ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
+// TODO: check for errors in these calls as well!
+
 // Don't use this unless it's the concrete exeuction of KLEE
 int kcmp_printf(const char *fmt, ...) {
   va_list args;
@@ -477,9 +479,17 @@ size_t kcmp_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
   return fwrite(ptr, size, nmemb, stream);
 }
 
-ssize_t write(int fd, const void *buf, size_t count) {
-  klee_warning_once("(TODO) Klee-Compare will miss this write call!");
+ssize_t kcmp_write(int fd, const void *buf, size_t count) {
+  // dump to the output file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  write(dumpfd, buf, count);
+  fclose(dumpfd);
 
+  // and to the original stream
+  return write(fd, buf, count);
+}
+
+ssize_t write(int fd, const void *buf, size_t count) {
   static int n_calls = 0;
   exe_file_t *f;
 

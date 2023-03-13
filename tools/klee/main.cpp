@@ -1336,7 +1336,8 @@ int main(int argc, char **argv, char **envp) {
       "vfprintf",
       "fputs",
       "fputc",
-      "fwrite"
+      "fwrite",
+      "write"
     };
 
     for (size_t i = 0; i < loadedModules.size(); ++i) {
