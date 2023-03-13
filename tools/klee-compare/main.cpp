@@ -37,6 +37,9 @@ namespace {
     cl::opt<string>
     CompareFile(cl::desc("<original (comparison) bytecode>"), cl::Positional, cl::Required);
 
+    cl::opt<bool>
+    UseDirected("directed", cl::desc("Use Patch-Directed Searcher (default=false)"));
+
     cl::list<string>
     InputArgv(cl::ConsumeAfter,
               cl::desc("<program arguments>..."));
@@ -245,8 +248,11 @@ int main(int argc, char **argv) {
     string klee_command_prefix = string(klee_path) + "/klee --libc=uclibc --posix-runtime";
     string klee_command = klee_command_prefix + " --output-dir " + outdir_klee;
 
-    // use patch-directed symbolic execution (TODO: make this a program option)
-    klee_command += " --search patch-priority --compare-bitcode " + CompareFile;
+    // use patch-directed symbolic execution if specified
+    if (UseDirected) {
+        std::cout << "Using Patch-Priority Searcher in KLEE" << std::endl;
+        klee_command += " --search patch-priority --compare-bitcode " + CompareFile;
+    }
 
     for (unsigned i = 0; i < InputArgv.size() + 1; i++) {
         string &arg = (i==0 ? TargetFile : InputArgv[i-1]);
