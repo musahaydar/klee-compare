@@ -79,6 +79,11 @@ bool instructionsEquiv(llvm::Instruction *inst1, llvm::Instruction *inst2, std::
         return false;
     }
 
+    // TODO: this might be better than comparing instructions as strings if it works...
+    // if (!inst1->isSameOperationAs(inst2)) {
+    //     return false;
+    // }
+
     // check that all operands are defined in equivalent instructions
     assert(inst1->getNumOperands() == inst2->getNumOperands() && "this shouldn't happen (instructions have different num operands)");
 
@@ -300,12 +305,12 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 // init all priorities to 0
                 priorities[&i] = 0;
 
+                instweights[&i] = bbweights[&b];
+
                 // set the weight of the instruction
                 // we want to prioritize exploring the most differing code first, so we can just multiply
                 // the weight by the size of the BB to achieve this (the weight should be a 0 or 1)
                 // instweights[&i] = bbweights[&b] * b.size();
-
-                instweights[&i] = bbweights[&b];
 
                 // use this to dumpPriorities() with weights as priorities
                 // priorities[&i] = instweights[&i];

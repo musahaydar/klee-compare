@@ -318,7 +318,6 @@ namespace klee {
 
   /// PatchPriority searcher prioritizes code which has been changed by a version of a
   /// program, as an addition for Klee-Compare.
-  /// TODO: implement the different pruning strategies we can take here
   class PatchPriority final : public Searcher {
   private:
     // based on Agamotto's searcher, used by a priority queue
@@ -342,6 +341,8 @@ namespace klee {
     // kind of hack but I need a way to remove a state where priority can change
     // map from pointer of execution state to the statePriority we made for it
     std::unordered_map<ExecutionState *, StatePriority *> stateToPriorities;
+
+    bool debug_prints = false; // lazy
 
   public:
     PatchPriority(Executor *executor);
