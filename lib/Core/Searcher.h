@@ -336,13 +336,13 @@ namespace klee {
     ExecutionState *lastState;
 
     // using a set instead of stl priority_queue because this gives us random element deletion
-    std::multiset<StatePriority> states;
+    std::priority_queue<StatePriority> states;
 
-    // kind of hack but I need a way to remove a state where priority can change
-    // map from pointer of execution state to the statePriority we made for it
-    std::unordered_map<ExecutionState *, StatePriority *> stateToPriorities;
+    // lazy state removal
+    std::unordered_set<ExecutionState*> removed;
 
-    bool debug_prints = false; // lazy
+    ExecutionState* filterState(ExecutionState *execState);
+    void addState(ExecutionState *current, ExecutionState *execState);
 
   public:
     PatchPriority(Executor *executor);

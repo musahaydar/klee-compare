@@ -556,6 +556,14 @@ void InterleavedSearcher::printName(llvm::raw_ostream &os) {
 ///
 
 bool PatchPriority::StatePriority::operator<(const PatchPriority::StatePriority &other) const {
+  // first, prioritize any states which have run patch code already
+  if (state->ranPatchedCode && !other.state->ranPatchedCode) {
+    return false;
+  } else if (!state->ranPatchedCode && other.state->ranPatchedCode) {
+    return true;
+  }
+
+  // now we use priorities to sort
   bool youngerState = state->steppedInstructions < other.state->steppedInstructions;
   bool lowerPriority = priority < other.priority;
   bool equalPriority = priority == other.priority; 
@@ -578,69 +586,72 @@ PatchPriority::~PatchPriority() {
   delete patchExplorer;
 }
 
+ExecutionState* PatchPriority::filterState(ExecutionState *execState) {
+  const auto iter = removed.find(execState);
+  if (iter != removed.end()) {
+    removed.erase(iter);
+    return nullptr;
+  }
+
+  return execState;
+}
+
+void PatchPriority::addState(ExecutionState *current, ExecutionState *execState) {
+  // if the previous state we got here from ran patched code or this state will run patch code, mark it
+  if (current && current->ranPatchedCode) {
+    execState->ranPatchedCode = true;
+  }
+
+  if (patchExplorer->isPatchCode(execState->pc->inst)) {
+    execState->ranPatchedCode = true;
+  }
+
+  uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
+
+  // we prune paths if they are the result of branch/call, have 0 priority (i.e. will not reach patched
+  // code) AND we have not previously run patched code up to this state
+  // if (!execState->ranPatchedCode) {
+  //   if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
+  //     if (priority == 0) {
+  //       return;
+  //     }
+  //   }
+  // }
+
+  // llvm::errs() << "*** Added state w/ priorities: " << priority << "\n";
+
+  states.emplace(execState, priority);
+}
+
 ExecutionState &PatchPriority::selectState() {
-  // take the largest element from the set and remove it 
-  auto iter = states.rbegin();
-  if (debug_prints) llvm::errs() << "*** Selected state with priority: " << iter->priority << "\n";
-  lastState = iter->state;
+  do {
+    const auto &sp = states.top();
+    lastState = filterState(sp.state);
+    states.pop();
+  } while (!lastState);
+
+  // llvm::errs() << "*** Selected state with priority: " << iter->priority << "\n";
   return *lastState;
 }
 
 void PatchPriority::update(ExecutionState *current,
                          const std::vector<ExecutionState *> &addedStates,
                          const std::vector<ExecutionState *> &removedStates) {
-  // update current priority based on it's new instruction
+  // reinsert current
   if (current) {
-    StatePriority *currSP = stateToPriorities[current];
-    uint64_t newPriority = patchExplorer->getPriority(current->pc->inst);
-    auto st = states.find(*currSP);
-    assert(st != states.end() && "could not find current state in searcher");
-    states.erase(*currSP);
-    currSP->priority = newPriority;
-    states.insert(*currSP);
+    addState(nullptr, current);
   }
   
   // add states
-  if (debug_prints) llvm::errs() << "*** Added priorities: ";
   for (ExecutionState *execState : addedStates) {
-    // if the previous state we got here from ran patched code or this state will run patch code, mark it
-    if (current && current->ranPatchedCode) {
-      execState->ranPatchedCode = true;
-    }
-
-    if (patchExplorer->isPatchCode(execState->pc->inst)) {
-      execState->ranPatchedCode = true;
-    }
-
-    uint64_t priority = patchExplorer->getPriority(execState->pc->inst);
-
-    // we prune paths if they are the result of branch/call, have 0 priority (i.e. will not reach patched
-    // code) AND we have not previously run patched code up to this state
-    // if (!execState->ranPatchedCode) {
-    //   if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
-    //     if (priority == 0) {
-    //       continue;
-    //     }
-    //   }
-    // }
-
-    StatePriority *sp = new StatePriority(execState, priority);
-    states.insert(*sp);
-    stateToPriorities[execState] = sp;
-    if (debug_prints) llvm::errs() << priority << ", ";
+    addState(current, execState);
   }
-  if (debug_prints) llvm::errs() << "\n*** Removed priorities: ";
 
   // remove states
   for (ExecutionState *execState : removedStates) {
-    assert(stateToPriorities.count(execState) && " could not find a removed state");
-    StatePriority *sp = stateToPriorities[execState];
-    if (debug_prints) llvm::errs() << sp->priority << ", ";
-    states.erase(*sp);
-    stateToPriorities.erase(execState);
-    delete sp;
+    removed.insert(execState);
+    // llvm::errs() << "*** Removed state w/ priorities: " << sp->priority << "\n";
   }
-  if (debug_prints) llvm::errs() << "\n";
 }
 
 bool PatchPriority::empty() {
