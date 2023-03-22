@@ -603,6 +603,7 @@ void PatchPriority::addState(ExecutionState *current, ExecutionState *execState)
   }
 
   if (patchExplorer->isPatchCode(execState->pc->inst)) {
+    llvm::errs() << "Ran patched code: " << *(execState->pc->inst) << "\n";
     execState->ranPatchedCode = true;
   }
 
@@ -610,13 +611,13 @@ void PatchPriority::addState(ExecutionState *current, ExecutionState *execState)
 
   // we prune paths if they are the result of branch/call, have 0 priority (i.e. will not reach patched
   // code) AND we have not previously run patched code up to this state
-  // if (!execState->ranPatchedCode) {
-  //   if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
-  //     if (priority == 0) {
-  //       return;
-  //     }
-  //   }
-  // }
+  if (patchExplorer->pruning && !execState->ranPatchedCode) {
+    if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
+      if (priority == 0) {
+        return;
+      }
+    }
+  }
 
   // llvm::errs() << "*** Added state w/ priorities: " << priority << "\n";
 
@@ -624,13 +625,15 @@ void PatchPriority::addState(ExecutionState *current, ExecutionState *execState)
 }
 
 ExecutionState &PatchPriority::selectState() {
+  int64_t priority = 0;
   do {
     const auto &sp = states.top();
     lastState = filterState(sp.state);
+    priority = sp.priority;
     states.pop();
   } while (!lastState);
 
-  // llvm::errs() << "*** Selected state with priority: " << iter->priority << "\n";
+  llvm::errs() << "*** Selected state with priority: " << priority << "\n";
   return *lastState;
 }
 

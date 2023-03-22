@@ -20,6 +20,9 @@ public:
     // the module we want to compare against
     llvm::Module *cmpModule;
 
+    // enable pruning
+    bool pruning = false;
+
     PatchExplorer(Executor *executor);
 
     uint64_t getPriority(llvm::Instruction *inst);

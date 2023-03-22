@@ -110,6 +110,9 @@ public:
   // for the patch comparison
   std::unique_ptr<KModule> cmpModule;
 
+  // musa: the searcher can check this variable to decide if pruning was enabled
+  bool pruning = false;
+
 private:
   InterpreterHandler *interpreterHandler;
   Searcher *searcher = nullptr;

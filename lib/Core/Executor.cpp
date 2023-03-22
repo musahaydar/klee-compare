@@ -145,6 +145,10 @@ cl::opt<bool> EmitAllErrors(
              "(default=false, i.e. one per (error,instruction) pair)"),
     cl::cat(TestGenCat));
 
+cl::opt<bool> PrunePaths(
+    "pruning", cl::init(false),
+    cl::desc("Enable pruning path for supported searchers (default=false) "),
+    cl::cat(TestGenCat));
 
 /* Constraint solving options */
 
@@ -558,6 +562,9 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
 
   kmodule->optimiseAndPrepare(opts, preservedFunctions);
   kmodule->checkModule();
+
+  // do this here why not
+  pruning = PrunePaths;
 
   // prepare the compare module likewise
   if (compareModules != nullptr) {

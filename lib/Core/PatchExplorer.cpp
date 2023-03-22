@@ -156,6 +156,8 @@ namespace klee {
 PatchExplorer::PatchExplorer(Executor *executor)
     : mainModule(executor->kmodule->module.get()),
       cmpModule(executor->cmpModule->module.get()) {
+    
+    pruning = executor->pruning;
 
     // STEP 1: compute weights of BBs
     std::unordered_map<llvm::BasicBlock *, int> bbweights;
@@ -283,10 +285,14 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
 
         if (!foundEquiv) {
-            // TODO: do we want to give weight to this BB as differening because of the changed branch
-            // or is the differing successor what we want to explore?
-            bbweights[iter.first] = 1;
-            patchInstructions.insert(iter.first);
+            // TODO: if we can't find equiv, we want to give priority to the successors which don't match
+            // How to accomplish this? We don't want to give weight to all the successors to cause us to
+            // priortize suboptimally.
+            // Maybe giving weight to this block is enough because we will explore all the successors in turn
+            // and any which we already considered differing will have their own additional weight
+            
+            // bbweights[iter.first] = 1;
+            // patchInstructions.insert(iter.first);
         }
     }
 
@@ -355,13 +361,18 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 assert(f && "bad assumption about aliases!");
                 possibleFns.insert(f);
             } else {
+                // TODO: dealing with function pointers
+                // Edge case related to exit() function giving itself weight by calling a function pointer with same args
+                // results in weight propogating throughout program from exit (less accurate pruning).
+                // But we need this to deal with calls to function ptrs updated with weight in previous iters of this loop
+
                 if (!cb->isIndirectCall()) {
+                    assert(false && "FIXME"); // needs updating from Agamotto, but I don't use this
                     // llvm::errs() << *cb << "\n";
                     // llvm::errs() << cb->getCalledOperand() << "\n";
                     // if (cb->getCalledOperand()) llvm::errs() << *cb->getCalledOperand() << "\n";
                     // if (cb->getCalledOperand()) llvm::errs() << *cb->getCalledOperand()->stripPointerCastsNoFollowAliases() << "\n";
                     // if (cb->getCalledOperand()) llvm::errs() << llvm::dyn_cast<llvm::GlobalAlias>(cb->getCalledOperand()->stripPointerCastsNoFollowAliases()) << "\n";
-                    assert(false && "TODO");
                 }
                 assert(cb->isIndirectCall());
 
@@ -398,6 +409,8 @@ PatchExplorer::PatchExplorer(Executor *executor)
             done: (void)0;
         }
     } while (c);
+
+    // Now we do the priorites
 
     for (llvm::Function &f : *mainModule) {
         if (f.empty()) continue;
@@ -464,9 +477,10 @@ PatchExplorer::PatchExplorer(Executor *executor)
 
             for (llvm::BasicBlock *pbb : llvm::predecessors(bb)) {
                 assert(pbb);
+                
                 // if (!dom.dominates(bb, pbb)) bbSet.insert(pbb);
-                // bbSet.insert(pbb);
-                if (!prop.count(pbb)) bbSet.insert(pbb);
+                // if (!prop.count(pbb)) bbSet.insert(pbb);
+                bbSet.insert(pbb);
 
                 llvm::Instruction *term = pbb->getTerminator();
                 priorities[term] = std::max(priorities[term], 
@@ -558,7 +572,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
     } while (changed);
 
-    // dumpPriorities();
+    dumpPriorities();
 }
 
 uint64_t PatchExplorer::getPriority(llvm::Instruction *inst) {
