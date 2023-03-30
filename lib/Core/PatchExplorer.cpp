@@ -170,7 +170,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
     std::unordered_map<llvm::BasicBlock *, std::unordered_set<llvm::BasicBlock *>> bbEquivSets;
     
     for (llvm::Function &func : *mainModule) {
-        // llvm::errs() << "Function: " << func.getName().str() << "\n";
+        llvm::errs() << "Function: " << func.getName().str() << "\n";
         llvm::Function *cmpFunc = cmpModule->getFunction(func.getName());
         assert(cmpFunc && "nullptr compare function?");
 
@@ -182,16 +182,6 @@ PatchExplorer::PatchExplorer(Executor *executor)
         //     continue; // to next function
         // }
         // TODO: segfaults :(
-        
-        // TODO: replace this with something smarter as above, this is a dumb heuristic because
-        // the analysis takes too long otherwise.
-        // Skip functions which have the same number of instructions (bad for patches that only change some instructions!)
-        if (func.getInstructionCount() == cmpFunc->getInstructionCount()) {
-            for (llvm::BasicBlock &bb : func) {
-                bbweights[&bb] = 0;
-            }
-            continue; // to next function
-        }
 
         if (cmpFunc == nullptr) {
             if (DEBUG_PRINTS) {
