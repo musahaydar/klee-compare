@@ -14,6 +14,7 @@
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/Support/raw_ostream.h"
+// #include "llvm/Transforms/Utils/FunctionComparator.h"
 
 #include <iostream>
 #include <sstream>
@@ -171,6 +172,27 @@ PatchExplorer::PatchExplorer(Executor *executor)
     for (llvm::Function &func : *mainModule) {
         // llvm::errs() << "Function: " << func.getName().str() << "\n";
         llvm::Function *cmpFunc = cmpModule->getFunction(func.getName());
+        assert(cmpFunc && "nullptr compare function?");
+
+        // skip functions which have the same hash, speeds up analysis
+        // if (llvm::FunctionComparator::functionHash(func) == llvm::FunctionComparator::functionHash(*cmpFunc)) {
+        //     for (llvm::BasicBlock &bb : func) {
+        //         bbweights[&bb] = 0;
+        //     }
+        //     continue; // to next function
+        // }
+        // TODO: segfaults :(
+        
+        // TODO: replace this with something smarter as above, this is a dumb heuristic because
+        // the analysis takes too long otherwise.
+        // Skip functions which have the same number of instructions (bad for patches that only change some instructions!)
+        if (func.getInstructionCount() == cmpFunc->getInstructionCount()) {
+            for (llvm::BasicBlock &bb : func) {
+                bbweights[&bb] = 0;
+            }
+            continue; // to next function
+        }
+
         if (cmpFunc == nullptr) {
             if (DEBUG_PRINTS) {
                 llvm::errs() << "Function: " << func.getName().str() << " does NOT exist in original bitcode\n";
@@ -179,6 +201,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
             // if this function is new, assign all BBs a weight of 1
             for (llvm::BasicBlock &bb : func) {
                 bbweights[&bb] = 1;
+                patchInstructions.insert(&bb);
             }
             continue; // to next function
         }
