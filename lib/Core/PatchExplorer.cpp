@@ -172,16 +172,6 @@ PatchExplorer::PatchExplorer(Executor *executor)
     for (llvm::Function &func : *mainModule) {
         llvm::errs() << "Function: " << func.getName().str() << "\n";
         llvm::Function *cmpFunc = cmpModule->getFunction(func.getName());
-        assert(cmpFunc && "nullptr compare function?");
-
-        // skip functions which have the same hash, speeds up analysis
-        // if (llvm::FunctionComparator::functionHash(func) == llvm::FunctionComparator::functionHash(*cmpFunc)) {
-        //     for (llvm::BasicBlock &bb : func) {
-        //         bbweights[&bb] = 0;
-        //     }
-        //     continue; // to next function
-        // }
-        // TODO: segfaults :(
 
         if (cmpFunc == nullptr) {
             if (DEBUG_PRINTS) {
@@ -195,6 +185,16 @@ PatchExplorer::PatchExplorer(Executor *executor)
             }
             continue; // to next function
         }
+
+        // skip functions which have the same hash, speeds up analysis
+        // if (llvm::FunctionComparator::functionHash(func) == llvm::FunctionComparator::functionHash(*cmpFunc)) {
+        //     for (llvm::BasicBlock &bb : func) {
+        //         bbweights[&bb] = 0;
+        //     }
+        //     continue; // to next function
+        // }
+        // TODO: segfaults :(
+        
         
         // memo used for recursively checking equivalence in instructions, instantiated per function
         std::unordered_map<llvm::Instruction *, llvm::Instruction *> instEquivMemo;
