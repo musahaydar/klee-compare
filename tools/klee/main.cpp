@@ -1337,7 +1337,11 @@ int main(int argc, char **argv, char **envp) {
       "fputs",
       "fputc",
       "fwrite",
-      "write"
+      "write",
+      "fprintf",
+      "putchar",
+      "fputs_unlocked",
+      "putchar_unlocked"
     };
 
     for (size_t i = 0; i < loadedModules.size(); ++i) {

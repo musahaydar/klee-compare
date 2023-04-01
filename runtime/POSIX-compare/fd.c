@@ -438,6 +438,17 @@ int kcmp_printf(const char *fmt, ...) {
   return 0;
 }
 
+int kcmp_putchar(int c) {
+  // dump the string to the file
+  FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
+  fputc(c, dumpfd);
+  fclose(dumpfd);
+
+  // and to the original stream
+  // should preserve any error return values to original caller
+  return putchar(c);
+}
+
 int kcmp_fputs(const char *str, FILE *stream) {
   // dump the string to the file
   FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
@@ -447,6 +458,27 @@ int kcmp_fputs(const char *str, FILE *stream) {
   // and to the original stream
   // should preserve any error return values to original caller
   return fputs(str, stream);
+}
+
+// unlocked versions used in coreutils
+int kcmp_putchar_unlocked(int c) {
+  return kcmp_putchar(c);
+}
+
+int kcmp_fputs_unlocked(const char *str, FILE *stream) {
+  return kcmp_fputs(str, stream);
+}
+
+int kcmp_fprintf(FILE *stream, const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+
+  int r = kcmp_vfprintf(stream, format, args);
+  va_end(args);
+
+  // and to the original stream
+  // should preserve any error return values to original caller
+  return r;
 }
 
 int kcmp_fputc(int chr, FILE *stream) {
@@ -477,16 +509,18 @@ size_t kcmp_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
 
   // and to the original stream
   return fwrite(ptr, size, nmemb, stream);
+  // return size;
 }
 
 ssize_t kcmp_write(int fd, const void *buf, size_t count) {
   // dump to the output file
   FILE *dumpfd = fopen("/tmp/klee_compare_dump.txt", "a+");
-  write(dumpfd, buf, count);
+  fwrite(buf, count, 1, dumpfd);
   fclose(dumpfd);
 
   // and to the original stream
   return write(fd, buf, count);
+  // return count;
 }
 
 ssize_t write(int fd, const void *buf, size_t count) {
