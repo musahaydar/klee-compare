@@ -406,7 +406,15 @@ ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
+// musa: these functions are stubs specifically for evaluating the AMP challenges 
+// size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
+//   return size;
+// }
+
 ssize_t write(int fd, const void *buf, size_t count) {
+  // stubbed out--see comment above
+  return count;
+
   static int n_calls = 0;
   exe_file_t *f;
 

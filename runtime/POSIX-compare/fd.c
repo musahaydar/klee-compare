@@ -508,8 +508,8 @@ size_t kcmp_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
   fclose(dumpfd);
 
   // and to the original stream
-  return fwrite(ptr, size, nmemb, stream);
-  // return size;
+  // return fwrite(ptr, size, nmemb, stream);
+  return size;
 }
 
 ssize_t kcmp_write(int fd, const void *buf, size_t count) {
@@ -519,8 +519,8 @@ ssize_t kcmp_write(int fd, const void *buf, size_t count) {
   fclose(dumpfd);
 
   // and to the original stream
-  return write(fd, buf, count);
-  // return count;
+  // return write(fd, buf, count);
+  return count;
 }
 
 ssize_t write(int fd, const void *buf, size_t count) {
