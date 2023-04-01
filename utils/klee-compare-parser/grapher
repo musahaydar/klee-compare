@@ -1,0 +1,47 @@
+#! /usr/bin/env python3
+from argparse import ArgumentParser
+import matplotlib.pyplot as plt
+import numpy as np
+import json
+
+LINE_STYLES = ["solid", "dotted", "dashed", "dashdot"]
+
+def main():
+    parser = ArgumentParser()
+    parser.add_argument('-i', '--input', type=str, default="results.json")
+    parser.add_argument('-t', '--title', type=str, default="title")
+    parser.add_argument('-o', '--output', type=str, default="graph.png")
+    args = parser.parse_args()
+
+    data = {}
+    with open(args.input, 'r') as fin:
+        data = json.load(fin)
+    
+    plt.rcParams["font.family"] = "Times New Roman"
+
+    # Graph the line
+    line_num = 0
+    maxxtick = 0
+    for label, target in data.items():
+        lists = target.items() # sorted by key, return a list of tuples
+        x, y = zip(*lists) # unpack a list of pairs into two tuples
+        plt.step(x, y, where="post", label=label, color="black", linestyle=LINE_STYLES[line_num % len(LINE_STYLES)])
+        line_num += 1
+        maxxtick = len(target)
+
+    plt.ylabel("Differing Outputs Found", fontsize=10)
+    plt.xlabel("Paths Tested", fontsize=10)
+    plt.xticks(np.arange(0, maxxtick, step=10), fontsize=10)
+    plt.legend(loc='upper left', prop={'size':9})
+    plt.title(args.title, fontsize=10)
+
+    fig = plt.gcf()
+    fig.set_size_inches(5, 3)
+    fig.tight_layout()
+
+    plt.savefig(args.output, dpi=300, bbox_inches='tight', pad_inches=0.02)
+    plt.close()
+        
+
+if __name__ == '__main__':
+    main()

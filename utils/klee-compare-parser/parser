@@ -1,0 +1,52 @@
+#! /usr/bin/env python3
+from argparse import ArgumentParser
+from pathlib import Path
+import json
+
+def main():
+    parser = ArgumentParser()
+    parser.add_argument('-f', '--files', nargs='+', default=[])
+    parser.add_argument('-l', '--labels', nargs='+', default=[])
+    parser.add_argument('-o', '--output', type=str, default="results.json")
+    args = parser.parse_args()
+
+    paths = 0
+    # map from path number to num diffs seen at that point per file (string -> int -> int)
+    total_diffs = {}
+
+    if len(args.labels) != len(args.files):
+        print("Error: need one label per file")
+        return
+
+    file_num = 0
+    for file in args.files:
+        label = args.labels[file_num]
+        total_diffs[label] = {}
+        line_num = 0
+        diffs = 0
+
+        # initalize 0th time step to 0
+        total_diffs[label][line_num] = 0
+        line_num += 1
+
+        output_file = open(Path(file))
+        file_num += 1
+
+        for line in output_file:
+            
+            # we've reached a line break, which occurs before results summary
+            if line == "" or line == "\n":
+                break
+
+            if "DIFFER" in line:
+                diffs += 1
+            
+            total_diffs[label][line_num] = diffs
+            line_num += 1
+    
+    with open(args.output, 'w') as fout:
+        json.dump(total_diffs, fout)
+        
+
+if __name__ == '__main__':
+    main()
