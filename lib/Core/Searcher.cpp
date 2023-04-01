@@ -603,7 +603,7 @@ void PatchPriority::addState(ExecutionState *current, ExecutionState *execState)
   }
 
   if (patchExplorer->isPatchCode(execState->pc->inst)) {
-    llvm::errs() << "Ran patched code: " << *(execState->pc->inst) << "\n";
+    // llvm::errs() << "Ran patched code: " << *(execState->pc->inst) << "\n";
     execState->ranPatchedCode = true;
   }
 
@@ -633,7 +633,7 @@ ExecutionState &PatchPriority::selectState() {
     states.pop();
   } while (!lastState);
 
-  llvm::errs() << "*** Selected state with priority: " << priority << "\n";
+  // llvm::errs() << "*** Selected state with priority: " << priority << "\n";
   return *lastState;
 }
 
