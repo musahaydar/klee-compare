@@ -50,6 +50,12 @@ bool instructionStringsEquiv(std::string inst1, std::string inst2) {
                 continue;
             }
 
+            // TODO: actually compare the values of the strings
+            // skipping constant strings for now
+            if (substr1.find("@.str") != std::string::npos && substr2.find("@.str") != std::string::npos) {
+                continue;
+            }
+
             return false;
         }
     }
@@ -170,7 +176,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
     std::unordered_map<llvm::BasicBlock *, std::unordered_set<llvm::BasicBlock *>> bbEquivSets;
     
     for (llvm::Function &func : *mainModule) {
-        llvm::errs() << "Function: " << func.getName().str() << "\n";
+        // llvm::errs() << "Function: " << func.getName().str() << "\n";
         llvm::Function *cmpFunc = cmpModule->getFunction(func.getName());
 
         if (cmpFunc == nullptr) {
@@ -492,8 +498,10 @@ PatchExplorer::PatchExplorer(Executor *executor)
                 assert(pbb);
                 
                 // if (!dom.dominates(bb, pbb)) bbSet.insert(pbb);
-                // if (!prop.count(pbb)) bbSet.insert(pbb);
-                bbSet.insert(pbb);
+                if (!prop.count(pbb)) bbSet.insert(pbb);
+
+                // this gives a more accurate propagation, but hangs on some functions
+                // bbSet.insert(pbb);
 
                 llvm::Instruction *term = pbb->getTerminator();
                 priorities[term] = std::max(priorities[term], 
