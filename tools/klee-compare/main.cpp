@@ -40,6 +40,9 @@ namespace {
     cl::opt<bool>
     UseDirected("directed", cl::desc("Use Patch-Directed Searcher (default=false)"));
 
+    cl::opt<bool>
+    Pruning("pruning", cl::desc("Enable path pruning in Patch-Directed Searcher (default=false)"));
+
     cl::list<string>
     InputArgv(cl::ConsumeAfter,
               cl::desc("<program arguments>..."));
@@ -124,8 +127,7 @@ void run_klee_instance(string klee_command, string outdir, string ktest, string 
         std::filesystem::rename("/tmp/klee_compare_dump.txt", outdir + "/compare_dump.txt");
     } else {
         // if no such file existed, we'll just create an empty file in the output dir
-        std::ofstream f(outdir + "/compare_dump.txt");
-        f.close();
+        std::ofstream(outdir + "/compare_dump.txt");
     }
 }
 
@@ -242,6 +244,10 @@ int main(int argc, char **argv) {
     // watch it with inotify without missing any events
     std::filesystem::create_directory(outdir_klee.c_str());
 
+    if(std::filesystem::exists("/tmp/klee_compare_dump.txt")) {
+        std::filesystem::remove("/tmp/klee_compare_dump.txt");
+    } 
+
     // create the command to run KLEE
     // hardcoding uclibc and posix-runtime args for now
     // TODO: these arguments should be set as options for klee-compare and passed through to klee
@@ -251,6 +257,9 @@ int main(int argc, char **argv) {
     // use patch-directed symbolic execution if specified
     if (UseDirected) {
         std::cout << "Using Patch-Priority Searcher in KLEE" << std::endl;
+        if (Pruning) {
+            klee_command += " --pruning";
+        }
         klee_command += " --search patch-priority --compare-bitcode " + CompareFile;
     }
 
