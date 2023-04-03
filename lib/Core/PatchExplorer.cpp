@@ -593,7 +593,7 @@ PatchExplorer::PatchExplorer(Executor *executor)
         }
     } while (changed);
 
-    dumpPriorities();
+    // dumpPriorities();
 }
 
 uint64_t PatchExplorer::getPriority(llvm::Instruction *inst) {
