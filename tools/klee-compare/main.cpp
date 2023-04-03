@@ -100,6 +100,39 @@ bool files_differ(std::ifstream &file_a, std::ifstream &file_b) {
     return false;
 }
 
+// compare the outputs for challenge 5
+bool challenge_5_comparison(std::ifstream &file_a, std::ifstream &file_b) {
+    // first, we expect the first 3 lines of the output to be the same
+    int num_lines_exact = 3;
+
+    string line_a, line_b;
+    for (int i = 0; i < num_lines_exact; ++i) {
+        if(!std::getline(file_a, line_a)) {
+            return true;
+        }
+
+        if(!std::getline(file_b, line_b)) {
+            return true;
+        }
+
+        if (line_a != line_b) {
+            return true;
+        }
+    }
+
+    // now we compare that the encrypted data outputs the same number of bytes
+    int num_bytes_a = file_a.tellg();
+    int num_bytes_b = file_b.tellg();
+
+    printf("Output got %d bytes vs %d bytes\n", num_bytes_a, num_bytes_b);
+
+    if (num_bytes_a != num_bytes_b) {
+        return true;
+    }
+
+    return false;
+}
+
 // helper function to run an instance of KLEE using a ktest
 // TODO: print diff of the program outputs in the results file or so
 void run_klee_instance(string klee_command, string outdir, string ktest, string target) {
@@ -160,7 +193,7 @@ void watch_klee_output(string watchdir, std::queue<string> *ktests) {
                         ktests->push(filename);
                     }
                 }
-            }   
+            }
             i += EVENT_SIZE + event->len;
         }
     }
@@ -196,6 +229,8 @@ void compare(bool *done, string klee_command, string outdir, std::queue<string> 
             std::ifstream patched_dump(patched_outdir + "/compare_dump.txt");
             std::ifstream original_dump(original_outdir + "/compare_dump.txt");
 
+            // just change this function call to a different comparison function
+            // wow! it's that easy!
             bool differs = files_differ(patched_dump, original_dump);
 
             patched_dump.close();
