@@ -293,6 +293,7 @@ int main(int argc, char **argv) {
     if (UseDirected) {
         std::cout << "Using Patch-Priority Searcher in KLEE" << std::endl;
         if (Pruning) {
+            std::cout << "Path pruning is enabled" << std::endl;
             klee_command += " --pruning";
         }
         klee_command += " --search patch-priority --compare-bitcode " + CompareFile;

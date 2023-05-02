@@ -612,7 +612,7 @@ void PatchPriority::addState(ExecutionState *current, ExecutionState *execState)
   // we prune paths if they are the result of branch/call, have 0 priority (i.e. will not reach patched
   // code) AND we have not previously run patched code up to this state
   if (patchExplorer->pruning && !execState->ranPatchedCode) {
-    if (isa<llvm::CallInst>(execState->prevPC->inst) || isa<llvm::BranchInst>(execState->prevPC->inst)) {
+    if (isa<llvm::BranchInst>(execState->prevPC->inst)) {
       if (priority == 0) {
         return;
       }

@@ -1349,6 +1349,18 @@ int main(int argc, char **argv, char **envp) {
         replaceOrRenameFunction(loadedModules[i].get(), funcName.c_str(), std::string("kcmp_" + funcName).c_str());
       }
     }
+  } else {
+    // this else condition is just a hack to evalute the AMP challenges
+    // in particular, we need to stub out the fwrite function, but doing so without renamed causes multiple definitions
+    std::vector<std::string> renameSymbols{
+      "fwrite"
+    };
+
+    for (size_t i = 0; i < loadedModules.size(); ++i) {
+      for (std::string funcName : renameSymbols) {
+        replaceOrRenameFunction(loadedModules[i].get(), funcName.c_str(), std::string("kcmp_" + funcName).c_str());
+      }
+    }
   }
 
   // Load and link the whole files content. The assumption is that this is the
