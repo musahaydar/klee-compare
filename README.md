@@ -1,9 +1,33 @@
-KLEE Symbolic Virtual Machine
+KOMPARE
 =============================
 
-[![Build Status](https://github.com/klee/klee/workflows/CI/badge.svg)](https://github.com/klee/klee/actions?query=workflow%3ACI)
-[![Build Status](https://api.cirrus-ci.com/github/klee/klee.svg)](https://cirrus-ci.com/github/klee/klee)
-[![Coverage](https://codecov.io/gh/klee/klee/branch/master/graph/badge.svg)](https://codecov.io/gh/klee/klee)
+`KOMPARE` is an extension for `KLEE` which uses symbolic exeuction for automated program comparison. After compiling `KLEE` as usual, run `KOMPARE` as follows:
+
+```
+./build/bin/klee-compare [options] <patched.bc> <original.bc>
+```
+
+- `<patched.bc>` is the version of the program (in LLVM bitcode format) with the patch applied. This version will be symbolically executed.
+- `<original.bc>` is the unpached version of the program (in LLVM bitcode format).
+
+The options supported are:
+
+- `--directed`: enabled patch-directed symbolic execution
+- `--pruning`: (EXPERIMENTAL) enable path pruning under patch-directed symbolic execution
+
+## Extending KOMPARE
+
+- To exend `KOMPARE` to support comparing additional externally visible outputs than those included in this repo, the function wrapper should be added to `runtime/POSIX-compare/fd.c` with the string `kcmp_` prepended to the function name (i.e. `fwrite` becomes `kcmp_fwrite`). Then, the function name should be added to the list of functions to be renamed during linking in `tools/klee-compare/main.c`.
+
+## Other Modifications to KLEE:
+
+Some of the modifications to `KLEE` can be used outside of the `KOMPARE` driver as follows:
+
+- To use the modified POSIX runtime for comparison in `KLEE`, add the  `--posix-compare` after the `--posix-runtime`. The modified POSIX enviroment will output the data sent to certain system calls (such as `fwrite`, `fputs`, `printf`, etc. The full list can be found in `tools/klee-compare/main.c`) to the file located in `/tmp/klee_compare_dump.txt`. When using `KOMPARE`, this file is collected and removed by the driver automatically.
+- To use patch-directed symbolic execution in `KLEE`, add the following options: `--search patch-priority --compare-bitcode <original.bc>`
+
+KLEE Symbolic Virtual Machine
+=============================
 
 `KLEE` is a symbolic virtual machine built on top of the LLVM compiler
 infrastructure. Currently, there are two primary components:
