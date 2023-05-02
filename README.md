@@ -1,3 +1,26 @@
+KOMPARE AMP Eval
+=============================
+
+Please see the README for the `klee-compare` branch first.
+
+This branch is additionally modified to support evaluating the AMP Challenge Programs by stubbing out certain system functions in `POSIX-Compare`.
+
+To run the AMP Challenges using KOMPARE, do the following:
+
+1. Start with the repo for the Ironpatch tool, which will include the driver program `superglue.c`. This driver program will send the symbolic CAN frame to the program.
+
+1. Replace (any instances of) the file `glue.c` with the `glue.c` included in this repo under `/amp/glue.c`. This modified `glue.c` removes some of the function stubs which have been moved to the `POSIX-Compare` runtime.
+
+1. In `superglue.c`, comment out the call to `vuln_main()` as well as the `printf`s before it which print `calling vuln main` (these must be commented out or the outputs will be differing)
+
+1. `make` and then `mv linked.bc sg_vuln.bc`
+
+1. Uncomment the call to `vuln_main()` and then comment the call to `patched_main()`. Once again, `make` and then `mv linked.bc sg_patched.bc`
+
+1. Make `KOMPARE` and then invoke `./build/bin/klee-compare sg_patched.bc sg_vuln.bc`
+
+Note that by default this will compare the outputs exactly. To specify a different output comparison, add the function to `tools/klee-compare/main.c`. An output comparison for Challenge 5 is provided in a function called `challenge_5_comparison(...)` for instance. This is needed if we expect the outputs to differ along all paths for any reason.
+
 KLEE Symbolic Virtual Machine
 =============================
 
